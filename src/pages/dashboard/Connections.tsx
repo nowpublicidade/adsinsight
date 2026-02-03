@@ -6,14 +6,22 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { 
   Loader2, 
   CheckCircle2, 
   XCircle, 
   ExternalLink,
-  RefreshCw,
   Unlink,
+  AlertTriangle,
 } from 'lucide-react';
 
 // Meta and Google icons as SVG
@@ -33,30 +41,48 @@ const GoogleIcon = () => (
 );
 
 export default function Connections() {
-  const { clientId } = useAuth();
+  const { clientId, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [connectingMeta, setConnectingMeta] = useState(false);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState<string>(clientId || '');
+
+  // Fetch all clients for admin
+  const { data: clients } = useQuery({
+    queryKey: ['clients-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, name')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+    enabled: isAdmin,
+  });
+
+  // Determine which client ID to use
+  const effectiveClientId = isAdmin ? selectedClientId : clientId;
 
   const { data: client, isLoading } = useQuery({
-    queryKey: ['client', clientId],
+    queryKey: ['client', effectiveClientId],
     queryFn: async () => {
-      if (!clientId) return null;
+      if (!effectiveClientId) return null;
       const { data, error } = await supabase
         .from('clients')
         .select('*')
-        .eq('id', clientId)
+        .eq('id', effectiveClientId)
         .single();
       
       if (error) throw error;
       return data;
     },
-    enabled: !!clientId,
+    enabled: !!effectiveClientId,
   });
 
   const disconnectMutation = useMutation({
     mutationFn: async (platform: 'meta' | 'google') => {
-      if (!clientId) throw new Error('No client ID');
+      if (!effectiveClientId) throw new Error('No client ID');
       
       const updates = platform === 'meta' 
         ? {
@@ -77,12 +103,12 @@ export default function Connections() {
       const { error } = await supabase
         .from('clients')
         .update(updates)
-        .eq('id', clientId);
+        .eq('id', effectiveClientId);
       
       if (error) throw error;
     },
     onSuccess: (_, platform) => {
-      queryClient.invalidateQueries({ queryKey: ['client', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['client', effectiveClientId] });
       toast.success(`${platform === 'meta' ? 'Meta Ads' : 'Google Ads'} desconectado`);
     },
     onError: (error) => {
@@ -91,18 +117,30 @@ export default function Connections() {
   });
 
   const handleConnectMeta = async () => {
+    // Validate client ID before proceeding
+    if (!effectiveClientId) {
+      toast.error('Selecione um cliente para conectar');
+      return;
+    }
+
     setConnectingMeta(true);
     try {
-      // Call the meta-oauth-start edge function
       const { data, error } = await supabase.functions.invoke('meta-oauth-start', {
-        body: { client_id: clientId },
+        body: { client_id: effectiveClientId },
       });
       
       if (error) throw error;
       
+      // Check for error in response data
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+      
       // Redirect to Meta OAuth
       if (data?.authUrl) {
         window.location.href = data.authUrl;
+      } else {
+        throw new Error('URL de autorização não recebida');
       }
     } catch (error: any) {
       toast.error('Erro ao iniciar conexão: ' + error.message);
@@ -111,18 +149,30 @@ export default function Connections() {
   };
 
   const handleConnectGoogle = async () => {
+    // Validate client ID before proceeding
+    if (!effectiveClientId) {
+      toast.error('Selecione um cliente para conectar');
+      return;
+    }
+
     setConnectingGoogle(true);
     try {
-      // Call the google-oauth-start edge function
       const { data, error } = await supabase.functions.invoke('google-oauth-start', {
-        body: { client_id: clientId },
+        body: { client_id: effectiveClientId },
       });
       
       if (error) throw error;
       
+      // Check for error in response data
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+      
       // Redirect to Google OAuth
       if (data?.authUrl) {
         window.location.href = data.authUrl;
+      } else {
+        throw new Error('URL de autorização não recebida');
       }
     } catch (error: any) {
       toast.error('Erro ao iniciar conexão: ' + error.message);
@@ -132,8 +182,9 @@ export default function Connections() {
 
   const isMetaConnected = !!client?.meta_connected_at;
   const isGoogleConnected = !!client?.google_connected_at;
+  const hasNoClient = !effectiveClientId;
 
-  if (isLoading) {
+  if (isLoading && effectiveClientId) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-96">
@@ -153,6 +204,58 @@ export default function Connections() {
           </p>
         </div>
 
+        {/* Admin: Client Selector */}
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Selecionar Cliente</CardTitle>
+              <CardDescription>
+                Como administrador, selecione o cliente para gerenciar as conexões
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="max-w-sm">
+                <Label htmlFor="client-select">Cliente</Label>
+                <Select
+                  value={selectedClientId || 'none'}
+                  onValueChange={(value) => setSelectedClientId(value === 'none' ? '' : value)}
+                >
+                  <SelectTrigger id="client-select">
+                    <SelectValue placeholder="Selecione um cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Selecione um cliente</SelectItem>
+                    {clients?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* No client warning */}
+        {hasNoClient && (
+          <Card className="border-warning bg-warning/5">
+            <CardContent className="py-6">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-5 w-5 text-warning" />
+                <div>
+                  <p className="font-medium">Nenhum cliente selecionado</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isAdmin 
+                      ? 'Selecione um cliente acima para gerenciar as conexões OAuth.' 
+                      : 'Você precisa estar vinculado a um cliente para conectar contas de anúncios.'}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Meta Ads Card */}
           <Card className="card-glow">
@@ -167,16 +270,18 @@ export default function Connections() {
                     <CardDescription>Facebook e Instagram</CardDescription>
                   </div>
                 </div>
-                {isMetaConnected ? (
-                  <Badge className="connection-connected">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Conectado
-                  </Badge>
-                ) : (
-                  <Badge className="connection-disconnected">
-                    <XCircle className="h-3 w-3 mr-1" />
-                    Desconectado
-                  </Badge>
+                {effectiveClientId && (
+                  isMetaConnected ? (
+                    <Badge className="connection-connected">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Conectado
+                    </Badge>
+                  ) : (
+                    <Badge className="connection-disconnected">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Desconectado
+                    </Badge>
+                  )
                 )}
               </div>
             </CardHeader>
@@ -210,7 +315,7 @@ export default function Connections() {
                   <Button 
                     className="w-full btn-glow"
                     onClick={handleConnectMeta}
-                    disabled={connectingMeta}
+                    disabled={connectingMeta || hasNoClient}
                   >
                     {connectingMeta ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -237,16 +342,18 @@ export default function Connections() {
                     <CardDescription>Search, Display e YouTube</CardDescription>
                   </div>
                 </div>
-                {isGoogleConnected ? (
-                  <Badge className="connection-connected">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Conectado
-                  </Badge>
-                ) : (
-                  <Badge className="connection-disconnected">
-                    <XCircle className="h-3 w-3 mr-1" />
-                    Desconectado
-                  </Badge>
+                {effectiveClientId && (
+                  isGoogleConnected ? (
+                    <Badge className="connection-connected">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Conectado
+                    </Badge>
+                  ) : (
+                    <Badge className="connection-disconnected">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Desconectado
+                    </Badge>
+                  )
                 )}
               </div>
             </CardHeader>
@@ -280,7 +387,7 @@ export default function Connections() {
                   <Button 
                     className="w-full btn-glow"
                     onClick={handleConnectGoogle}
-                    disabled={connectingGoogle}
+                    disabled={connectingGoogle || hasNoClient}
                   >
                     {connectingGoogle ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
