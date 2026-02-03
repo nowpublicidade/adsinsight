@@ -24,10 +24,14 @@ interface UserWithDetails extends UserProfile {
 }
 
 export default function AdminUsers() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [selectedClientId, setSelectedClientId] = useState<string>('none');
   const [selectedRole, setSelectedRole] = useState<'admin' | 'client'>('client');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserName, setNewUserName] = useState('');
   const queryClient = useQueryClient();
 
   // Fetch users with their roles and client info
@@ -79,6 +83,32 @@ export default function AdminUsers() {
     },
   });
 
+  // Create new user
+  const createUserMutation = useMutation({
+    mutationFn: async ({ email, password, fullName }: { email: string; password: string; fullName: string }) => {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName }
+        }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      toast.success('Usuário criado com sucesso');
+      setIsCreateOpen(false);
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setNewUserName('');
+    },
+    onError: (error) => {
+      toast.error('Erro ao criar usuário: ' + error.message);
+    },
+  });
+
   // Update user's client assignment
   const updateClientMutation = useMutation({
     mutationFn: async ({ userId, clientId }: { userId: string; clientId: string | null }) => {
@@ -91,7 +121,7 @@ export default function AdminUsers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       toast.success('Usuário atualizado com sucesso');
-      setIsOpen(false);
+      setIsEditOpen(false);
       setSelectedUserId(null);
     },
     onError: (error) => {
@@ -126,9 +156,21 @@ export default function AdminUsers() {
 
   const openEditDialog = (user: UserWithDetails) => {
     setSelectedUserId(user.user_id);
-    setSelectedClientId(user.client_id || '');
+    setSelectedClientId(user.client_id || 'none');
     setSelectedRole(user.user_roles[0]?.role || 'client');
-    setIsOpen(true);
+    setIsEditOpen(true);
+  };
+
+  const handleCreateUser = () => {
+    if (!newUserEmail || !newUserPassword || !newUserName) {
+      toast.error('Preencha todos os campos');
+      return;
+    }
+    createUserMutation.mutate({
+      email: newUserEmail,
+      password: newUserPassword,
+      fullName: newUserName
+    });
   };
 
   const handleSave = () => {
@@ -136,7 +178,7 @@ export default function AdminUsers() {
     
     updateClientMutation.mutate({ 
       userId: selectedUserId, 
-      clientId: selectedClientId || null 
+      clientId: selectedClientId === 'none' ? null : selectedClientId 
     });
     
     const currentRole = users?.find(u => u.user_id === selectedUserId)?.user_roles[0]?.role;
@@ -163,6 +205,10 @@ export default function AdminUsers() {
               Gerencie usuários e suas permissões
             </p>
           </div>
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Novo Usuário
+          </Button>
         </div>
 
         {/* Stats Cards */}
@@ -279,8 +325,62 @@ export default function AdminUsers() {
           </CardContent>
         </Card>
 
+        {/* Create User Dialog */}
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Novo Usuário</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Nome Completo</Label>
+                <Input
+                  value={newUserName}
+                  onChange={(e) => setNewUserName(e.target.value)}
+                  placeholder="Nome do usuário"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>E-mail</Label>
+                <Input
+                  type="email"
+                  value={newUserEmail}
+                  onChange={(e) => setNewUserEmail(e.target.value)}
+                  placeholder="email@exemplo.com"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Senha</Label>
+                <Input
+                  type="password"
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                />
+              </div>
+              
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleCreateUser}
+                  disabled={createUserMutation.isPending}
+                >
+                  {createUserMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Criar Usuário
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Edit User Dialog */}
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Editar Usuário</DialogTitle>
@@ -306,7 +406,7 @@ export default function AdminUsers() {
                     <SelectValue placeholder="Selecione um cliente" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhum</SelectItem>
+                    <SelectItem value="none">Nenhum</SelectItem>
                     {clients?.map((client) => (
                       <SelectItem key={client.id} value={client.id}>
                         {client.name}
@@ -320,7 +420,7 @@ export default function AdminUsers() {
               </div>
               
               <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setIsOpen(false)}>
+                <Button variant="outline" onClick={() => setIsEditOpen(false)}>
                   Cancelar
                 </Button>
                 <Button 
