@@ -1,136 +1,136 @@
 
 
-# Plano de Implementação: Páginas e Conexões OAuth
+# Plano de Correções: Navegação, Conexões e Integração de Relatórios
 
 ## Problemas Identificados
 
-### 1. Páginas Relatórios e Configurações (404 Error)
-As rotas `/dashboard/reports` e `/dashboard/settings` estão referenciadas no menu lateral (`DashboardLayout.tsx`), mas:
-- As páginas **não existem** no diretório `src/pages/dashboard/`
-- As rotas **não estão configuradas** no `App.tsx`
+### 1. Links "Conexões" e "Configurações" não clicáveis
+Após análise do código, os links estão corretos no `DashboardLayout.tsx` e as rotas estão registradas no `App.tsx`. O problema é que o usuário **está na rota `/dashboard`** e os links funcionam, mas pode haver:
+- Um elemento sobrepondo os links (z-index)
+- A área clicável pode estar sendo afetada pelo CSS do sidebar
 
-### 2. Botão "Conectar" Não Funciona
-A conexão OAuth depende do `clientId` vindo do `AuthContext`. Se o usuário não está vinculado a um cliente:
-- `clientId` será `null`
-- A função `handleConnectMeta/Google` envia `client_id: null` para a Edge Function
-- A Edge Function retorna erro 400 (client_id is required)
-- O erro não é exibido ao usuário de forma clara
+### 2. Botão "Conectar Meta Ads" - Por que não funciona?
+O botão está **desabilitado propositalmente** quando:
+- Não há cliente selecionado
+- O campo "ID da Conta de Anúncios" está vazio
 
-### 3. Fluxo de Configuração de Dados
-Os dados de anúncios serão extraídos através das conexões OAuth que salvam os tokens na tabela `clients`:
-- Meta: `meta_access_token`, `meta_ad_account_id`, etc.
-- Google: `google_access_token`, `google_refresh_token`, `google_customer_id`, etc.
+Isso é o comportamento correto, mas precisa de melhor feedback visual para o usuário entender que deve inserir o ID primeiro.
 
-As Edge Functions `meta-ads-insights` e `google-ads-insights` usam esses tokens para buscar métricas.
+### 3. Relatórios Personalizados e Dashboard
+Atualmente o sistema funciona assim:
+
+```text
+Relatórios (criar) --> ReportEditor (configurar métricas) --> ???
+```
+
+O problema é que **não existe** uma tela para **visualizar** os relatórios configurados com dados reais. Os relatórios são configurados mas nunca são exibidos.
+
+O Dashboard atual mostra métricas fixas/mockadas, **sem nenhuma integração** com os relatórios personalizados.
 
 ---
 
 ## Solução Proposta
 
-### Tarefa 1: Criar Página de Relatórios (`/dashboard/reports`)
+### Tarefa 1: Corrigir Navegação do Sidebar
+Verificar e corrigir possíveis problemas de z-index ou sobreposição de elementos no sidebar.
 
-Funcionalidades:
-- Listar relatórios do cliente (tabela `reports`)
-- Criar/editar relatórios personalizados
-- Visualizar métricas com widgets configuráveis
-- Exportar relatórios (PDF/CSV futuro)
+**Arquivos:**
+- `src/components/layout/DashboardLayout.tsx`
 
-**Estrutura da página:**
-- Lista de relatórios existentes
-- Botão "Novo Relatório"
-- Visualização detalhada de cada relatório com métricas do Meta/Google Ads
+### Tarefa 2: Melhorar Feedback do Botão Conectar
+Adicionar mensagens claras e estados visuais para o botão conectar:
+- Mostrar tooltip explicando por que está desabilitado
+- Destacar visualmente que o ID precisa ser preenchido primeiro
+- Adicionar validação inline
 
-### Tarefa 2: Criar Página de Configurações (`/dashboard/settings`)
+**Arquivos:**
+- `src/pages/dashboard/Connections.tsx`
 
-Funcionalidades:
-- Dados do perfil do usuário
-- Preferências de notificação
-- Configurações de visualização (tema, formato de data, moeda)
-- Para admins: configurações adicionais do cliente
+### Tarefa 3: Criar Visualização de Relatório
+Criar uma página para visualizar os relatórios com as métricas configuradas.
 
-### Tarefa 3: Corrigir Conexões OAuth
+**Nova página:** `/dashboard/reports/:reportId/view`
+- Buscar widgets configurados do relatório
+- Buscar dados reais das Edge Functions (`meta-ads-insights`, `google-ads-insights`)
+- Renderizar as métricas configuradas em formato de cards/gráficos
 
-**Problema identificado:** O botão conectar não funciona porque:
-1. O usuário admin pode não ter `clientId` vinculado
-2. Não há feedback visual quando ocorre erro
+**Arquivos:**
+- `src/pages/dashboard/ReportViewer.tsx` (novo)
+- `src/App.tsx` (adicionar rota)
+- `src/pages/dashboard/Reports.tsx` (adicionar botão "Visualizar")
 
-**Correções:**
-- Mostrar mensagem clara se não há cliente vinculado
-- Exibir toast de erro quando a Edge Function falhar
-- Para admins: permitir selecionar qual cliente conectar
-- Verificar resposta da Edge Function antes de redirecionar
+### Tarefa 4: Integrar Relatórios ao Dashboard
+Modificar o Dashboard para mostrar relatórios do cliente ou permitir seleção de um relatório padrão.
 
-### Tarefa 4: Adicionar Rotas ao App.tsx
+**Opções:**
+1. O Dashboard exibe o primeiro relatório configurado
+2. O Dashboard lista todos os relatórios como cards clicáveis
+3. O usuário pode definir um "relatório padrão" nas configurações
 
-Registrar as novas páginas:
-```text
-/dashboard/reports   -> Reports.tsx
-/dashboard/settings  -> Settings.tsx
-```
+**Arquivos:**
+- `src/pages/dashboard/Dashboard.tsx`
 
 ---
 
 ## Detalhamento Técnico
 
-### Arquivos a Criar:
-1. `src/pages/dashboard/Reports.tsx` - Página de relatórios
-2. `src/pages/dashboard/Settings.tsx` - Página de configurações
-
-### Arquivos a Modificar:
-1. `src/App.tsx` - Adicionar rotas
-2. `src/pages/dashboard/Connections.tsx` - Corrigir tratamento de erros e feedback
-
-### Fluxo de Dados de Anúncios:
+### Visualização de Relatório
 
 ```text
-+------------------+     +-----------------+     +------------------+
-|   Conexões       | --> |  clients table  | --> |  Edge Functions  |
-| (OAuth tokens)   |     | (tokens saved)  |     | (fetch metrics)  |
-+------------------+     +-----------------+     +------------------+
-                                                         |
-                                                         v
-+------------------+     +-----------------+     +------------------+
-|   Dashboard      | <-- |   API Response  | <-- | Meta/Google API  |
-| (display data)   |     |   (metrics)     |     | (ads insights)   |
-+------------------+     +-----------------+     +------------------+
+ReportViewer.tsx
+    |
+    +--> Busca report (supabase.from('reports'))
+    +--> Busca report_widgets (supabase.from('report_widgets'))
+    |
+    +--> Para cada widget:
+         |
+         +--> Se platform = 'meta':
+         |      Busca dados de meta-ads-insights Edge Function
+         |
+         +--> Se platform = 'google':
+                Busca dados de google-ads-insights Edge Function
+    |
+    +--> Renderiza widgets como MetricCard
 ```
 
-### Correção do Botão Conectar:
+### Fluxo Completo do Sistema
 
-A lógica atual:
-```typescript
-const handleConnectMeta = async () => {
-  setConnectingMeta(true);
-  try {
-    const { data, error } = await supabase.functions.invoke('meta-oauth-start', {
-      body: { client_id: clientId },  // clientId pode ser null!
-    });
-    if (error) throw error;
-    if (data?.authUrl) {
-      window.location.href = data.authUrl;
-    }
-  } catch (error) {
-    toast.error('Erro ao iniciar conexão: ' + error.message);
-    setConnectingMeta(false);
-  }
-};
+```text
+Relatórios --> Criar Relatório --> ReportEditor (configurar métricas)
+                                          |
+                                          v
+                                  report_widgets (salvo no banco)
+                                          |
+                                          v
+Dashboard / ReportViewer --> Buscar widgets --> Buscar dados APIs --> Exibir métricas
 ```
 
-**Problema:** Se `clientId` for `null`, a Edge Function retorna erro, mas `supabase.functions.invoke` pode não capturar isso corretamente.
+### ID da Conta de Anúncios
+Os IDs são salvos na tabela `clients`:
+- `meta_ad_account_id`: Para buscar dados da API Meta
+- `google_customer_id`: Para buscar dados da API Google
 
-**Solução:**
-1. Verificar se `clientId` existe antes de chamar a função
-2. Verificar o conteúdo da resposta `data` para erros
-3. Mostrar mensagem apropriada se não há cliente vinculado
+As Edge Functions usam estes IDs para fazer as requisições às APIs.
 
 ---
 
-## Resumo das Alterações
+## Arquivos a Criar/Modificar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/pages/dashboard/Reports.tsx` | Criar | Página de relatórios |
-| `src/pages/dashboard/Settings.tsx` | Criar | Página de configurações |
-| `src/App.tsx` | Editar | Adicionar rotas reports e settings |
-| `src/pages/dashboard/Connections.tsx` | Editar | Melhorar tratamento de erros e feedback |
+| `src/components/layout/DashboardLayout.tsx` | Modificar | Corrigir z-index do sidebar |
+| `src/pages/dashboard/Connections.tsx` | Modificar | Melhorar feedback visual |
+| `src/pages/dashboard/ReportViewer.tsx` | **Criar** | Página para visualizar relatório |
+| `src/pages/dashboard/Reports.tsx` | Modificar | Adicionar botão "Visualizar" |
+| `src/pages/dashboard/Dashboard.tsx` | Modificar | Integrar com relatórios |
+| `src/App.tsx` | Modificar | Adicionar rota de visualização |
+
+---
+
+## Prioridades
+
+1. **Alta**: Corrigir navegação do sidebar (links não clicáveis)
+2. **Alta**: Criar visualização de relatório com métricas reais
+3. **Média**: Integrar relatórios ao Dashboard principal
+4. **Média**: Melhorar UX do botão Conectar
 
