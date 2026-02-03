@@ -89,7 +89,9 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
   }
 
   /* Scrollbar personalizada */
@@ -119,10 +121,13 @@
   }
 
   .card-glow::before {
-    content: '';
+    content: "";
     @apply absolute inset-0 opacity-0 transition-opacity duration-300;
-    background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), 
-      hsl(188 95% 43% / 0.1), transparent 50%);
+    background: radial-gradient(
+      circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+      hsl(188 95% 43% / 0.1),
+      transparent 50%
+    );
   }
 
   .card-glow:hover::before {
@@ -206,4 +211,8 @@
       transform: translateY(0);
     }
   }
+}
+
+.card-glow::before {
+  display: none !important;
 }
