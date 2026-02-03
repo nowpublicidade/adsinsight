@@ -11,6 +11,8 @@ import AdminClients from "./pages/admin/AdminClients";
 import AdminUsers from "./pages/admin/AdminUsers";
 import Dashboard from "./pages/dashboard/Dashboard";
 import Connections from "./pages/dashboard/Connections";
+import Reports from "./pages/dashboard/Reports";
+import Settings from "./pages/dashboard/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,6 +60,22 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Connections />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dashboard/reports" 
+              element={
+                <ProtectedRoute>
+                  <Reports />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dashboard/settings" 
+              element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               } 
             />
