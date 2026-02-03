@@ -29,6 +29,7 @@ import {
   Trash2,
   Settings,
   BarChart3,
+  Eye,
 } from 'lucide-react';
 import {
   DropdownMenu,
