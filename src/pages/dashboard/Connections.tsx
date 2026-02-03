@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -22,6 +23,7 @@ import {
   ExternalLink,
   Unlink,
   AlertTriangle,
+  Save,
 } from 'lucide-react';
 
 // Meta and Google icons as SVG
@@ -46,6 +48,10 @@ export default function Connections() {
   const [connectingMeta, setConnectingMeta] = useState(false);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>(clientId || '');
+  
+  // Account ID states
+  const [metaAdAccountId, setMetaAdAccountId] = useState('');
+  const [googleCustomerId, setGoogleCustomerId] = useState('');
 
   // Fetch all clients for admin
   const { data: clients } = useQuery({
@@ -80,6 +86,38 @@ export default function Connections() {
     enabled: !!effectiveClientId,
   });
 
+  // Sync local state with client data
+  useEffect(() => {
+    if (client) {
+      setMetaAdAccountId(client.meta_ad_account_id || '');
+      setGoogleCustomerId(client.google_customer_id || '');
+    }
+  }, [client]);
+
+  const updateAccountIdMutation = useMutation({
+    mutationFn: async ({ platform, accountId }: { platform: 'meta' | 'google'; accountId: string }) => {
+      if (!effectiveClientId) throw new Error('No client ID');
+      
+      const updates = platform === 'meta' 
+        ? { meta_ad_account_id: accountId || null }
+        : { google_customer_id: accountId || null };
+
+      const { error } = await supabase
+        .from('clients')
+        .update(updates)
+        .eq('id', effectiveClientId);
+      
+      if (error) throw error;
+    },
+    onSuccess: (_, { platform }) => {
+      queryClient.invalidateQueries({ queryKey: ['client', effectiveClientId] });
+      toast.success(`ID da conta ${platform === 'meta' ? 'Meta' : 'Google'} salvo com sucesso`);
+    },
+    onError: (error) => {
+      toast.error('Erro ao salvar: ' + error.message);
+    },
+  });
+
   const disconnectMutation = useMutation({
     mutationFn: async (platform: 'meta' | 'google') => {
       if (!effectiveClientId) throw new Error('No client ID');
@@ -88,7 +126,6 @@ export default function Connections() {
         ? {
             meta_access_token: null,
             meta_token_expires_at: null,
-            meta_ad_account_id: null,
             meta_user_id: null,
             meta_connected_at: null,
           }
@@ -96,7 +133,6 @@ export default function Connections() {
             google_access_token: null,
             google_refresh_token: null,
             google_token_expires_at: null,
-            google_customer_id: null,
             google_connected_at: null,
           };
 
@@ -117,11 +153,18 @@ export default function Connections() {
   });
 
   const handleConnectMeta = async () => {
-    // Validate client ID before proceeding
     if (!effectiveClientId) {
       toast.error('Selecione um cliente para conectar');
       return;
     }
+
+    if (!metaAdAccountId.trim()) {
+      toast.error('Insira o ID da conta de anúncios Meta antes de conectar');
+      return;
+    }
+
+    // Save the account ID first
+    await updateAccountIdMutation.mutateAsync({ platform: 'meta', accountId: metaAdAccountId });
 
     setConnectingMeta(true);
     try {
@@ -131,12 +174,10 @@ export default function Connections() {
       
       if (error) throw error;
       
-      // Check for error in response data
       if (data?.error) {
         throw new Error(data.error);
       }
       
-      // Redirect to Meta OAuth
       if (data?.authUrl) {
         window.location.href = data.authUrl;
       } else {
@@ -149,11 +190,18 @@ export default function Connections() {
   };
 
   const handleConnectGoogle = async () => {
-    // Validate client ID before proceeding
     if (!effectiveClientId) {
       toast.error('Selecione um cliente para conectar');
       return;
     }
+
+    if (!googleCustomerId.trim()) {
+      toast.error('Insira o Customer ID do Google Ads antes de conectar');
+      return;
+    }
+
+    // Save the account ID first
+    await updateAccountIdMutation.mutateAsync({ platform: 'google', accountId: googleCustomerId });
 
     setConnectingGoogle(true);
     try {
@@ -163,12 +211,10 @@ export default function Connections() {
       
       if (error) throw error;
       
-      // Check for error in response data
       if (data?.error) {
         throw new Error(data.error);
       }
       
-      // Redirect to Google OAuth
       if (data?.authUrl) {
         window.location.href = data.authUrl;
       } else {
@@ -286,10 +332,38 @@ export default function Connections() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Account ID Input */}
+              <div className="space-y-2">
+                <Label htmlFor="meta-account-id">ID da Conta de Anúncios</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="meta-account-id"
+                    value={metaAdAccountId}
+                    onChange={(e) => setMetaAdAccountId(e.target.value)}
+                    placeholder="Ex: act_123456789"
+                    disabled={hasNoClient}
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => updateAccountIdMutation.mutate({ platform: 'meta', accountId: metaAdAccountId })}
+                    disabled={hasNoClient || updateAccountIdMutation.isPending}
+                  >
+                    {updateAccountIdMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Encontre o ID no Gerenciador de Anúncios do Meta (formato: act_XXXXXXXXX)
+                </p>
+              </div>
+
               {isMetaConnected ? (
                 <>
                   <div className="text-sm text-muted-foreground space-y-1">
-                    <p>Conta: {client?.meta_ad_account_id || 'N/A'}</p>
                     <p>Conectado em: {client?.meta_connected_at 
                       ? new Date(client.meta_connected_at).toLocaleDateString('pt-BR')
                       : 'N/A'}
@@ -310,12 +384,12 @@ export default function Connections() {
               ) : (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    Conecte sua conta do Meta Business para importar métricas de campanhas do Facebook e Instagram, incluindo dados do Pixel.
+                    Conecte sua conta do Meta Business para importar métricas de campanhas do Facebook e Instagram.
                   </p>
                   <Button 
                     className="w-full btn-glow"
                     onClick={handleConnectMeta}
-                    disabled={connectingMeta || hasNoClient}
+                    disabled={connectingMeta || hasNoClient || !metaAdAccountId.trim()}
                   >
                     {connectingMeta ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -358,10 +432,38 @@ export default function Connections() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Customer ID Input */}
+              <div className="space-y-2">
+                <Label htmlFor="google-customer-id">Customer ID</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="google-customer-id"
+                    value={googleCustomerId}
+                    onChange={(e) => setGoogleCustomerId(e.target.value)}
+                    placeholder="Ex: 123-456-7890"
+                    disabled={hasNoClient}
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => updateAccountIdMutation.mutate({ platform: 'google', accountId: googleCustomerId })}
+                    disabled={hasNoClient || updateAccountIdMutation.isPending}
+                  >
+                    {updateAccountIdMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Encontre o Customer ID no Google Ads (formato: XXX-XXX-XXXX)
+                </p>
+              </div>
+
               {isGoogleConnected ? (
                 <>
                   <div className="text-sm text-muted-foreground space-y-1">
-                    <p>Customer ID: {client?.google_customer_id || 'N/A'}</p>
                     <p>Conectado em: {client?.google_connected_at 
                       ? new Date(client.google_connected_at).toLocaleDateString('pt-BR')
                       : 'N/A'}
@@ -387,7 +489,7 @@ export default function Connections() {
                   <Button 
                     className="w-full btn-glow"
                     onClick={handleConnectGoogle}
-                    disabled={connectingGoogle || hasNoClient}
+                    disabled={connectingGoogle || hasNoClient || !googleCustomerId.trim()}
                   >
                     {connectingGoogle ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -407,9 +509,10 @@ export default function Connections() {
           <CardContent className="py-6">
             <h3 className="font-semibold mb-2">Como funciona a conexão?</h3>
             <ul className="text-sm text-muted-foreground space-y-2">
-              <li>• Você será redirecionado para a página de login da plataforma</li>
-              <li>• Autorize o acesso apenas para leitura dos dados de anúncios</li>
-              <li>• Seus tokens são armazenados de forma segura e criptografada</li>
+              <li>• <strong>Passo 1:</strong> Insira o ID da conta de anúncios (Meta ou Google)</li>
+              <li>• <strong>Passo 2:</strong> Clique em "Conectar" para autorizar o acesso</li>
+              <li>• <strong>Passo 3:</strong> Você será redirecionado para a página de login da plataforma</li>
+              <li>• <strong>Passo 4:</strong> Autorize o acesso apenas para leitura dos dados de anúncios</li>
               <li>• Os dados são sincronizados automaticamente a cada hora</li>
               <li>• Você pode desconectar a qualquer momento</li>
             </ul>
