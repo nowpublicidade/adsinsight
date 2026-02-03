@@ -262,6 +262,10 @@ export default function Reports() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => navigate(`/dashboard/reports/${report.id}/view`)}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          Visualizar Relatório
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => navigate(`/dashboard/reports/${report.id}/edit`)}>
                           <Settings className="h-4 w-4 mr-2" />
                           Configurar Métricas
