@@ -32,6 +32,8 @@ export default function AdminUsers() {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserName, setNewUserName] = useState('');
+  const [newUserClientId, setNewUserClientId] = useState<string>('none');
+  const [newUserRole, setNewUserRole] = useState<'admin' | 'client'>('client');
   const queryClient = useQueryClient();
 
   // Fetch users with their roles and client info
@@ -85,7 +87,20 @@ export default function AdminUsers() {
 
   // Create new user
   const createUserMutation = useMutation({
-    mutationFn: async ({ email, password, fullName }: { email: string; password: string; fullName: string }) => {
+    mutationFn: async ({ 
+      email, 
+      password, 
+      fullName, 
+      clientId, 
+      role 
+    }: { 
+      email: string; 
+      password: string; 
+      fullName: string; 
+      clientId: string | null;
+      role: 'admin' | 'client';
+    }) => {
+      // Create user via signup
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -94,6 +109,37 @@ export default function AdminUsers() {
         }
       });
       if (error) throw error;
+      
+      // If user was created and we have a client to assign
+      if (data.user && clientId) {
+        // Wait a bit for the trigger to create the profile
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const { error: updateError } = await supabase
+          .from('user_profiles')
+          .update({ client_id: clientId })
+          .eq('user_id', data.user.id);
+        
+        if (updateError) console.error('Error assigning client:', updateError);
+      }
+      
+      // Update role if not default (client)
+      if (data.user && role !== 'client') {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Delete default role and insert new one
+        await supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', data.user.id);
+          
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({ user_id: data.user.id, role });
+        
+        if (roleError) console.error('Error assigning role:', roleError);
+      }
+      
       return data;
     },
     onSuccess: () => {
@@ -103,6 +149,8 @@ export default function AdminUsers() {
       setNewUserEmail('');
       setNewUserPassword('');
       setNewUserName('');
+      setNewUserClientId('none');
+      setNewUserRole('client');
     },
     onError: (error) => {
       toast.error('Erro ao criar usuário: ' + error.message);
@@ -169,7 +217,9 @@ export default function AdminUsers() {
     createUserMutation.mutate({
       email: newUserEmail,
       password: newUserPassword,
-      fullName: newUserName
+      fullName: newUserName,
+      clientId: newUserClientId === 'none' ? null : newUserClientId,
+      role: newUserRole
     });
   };
 
@@ -359,6 +409,39 @@ export default function AdminUsers() {
                   onChange={(e) => setNewUserPassword(e.target.value)}
                   placeholder="Mínimo 6 caracteres"
                 />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as 'admin' | 'client')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                    <SelectItem value="client">Cliente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Cliente Vinculado</Label>
+                <Select value={newUserClientId} onValueChange={setNewUserClientId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {clients?.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Vincular a um cliente permite que o usuário acesse os dados desse cliente
+                </p>
               </div>
               
               <div className="flex justify-end gap-2 pt-4">
