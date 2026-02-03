@@ -8,6 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AdminClients from "./pages/admin/AdminClients";
+import AdminUsers from "./pages/admin/AdminUsers";
 import Dashboard from "./pages/dashboard/Dashboard";
 import Connections from "./pages/dashboard/Connections";
 import NotFound from "./pages/NotFound";
@@ -31,6 +32,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="admin">
                   <AdminClients />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/users" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminUsers />
                 </ProtectedRoute>
               } 
             />
