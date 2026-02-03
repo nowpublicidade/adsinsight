@@ -15,6 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { 
   Loader2, 
@@ -24,6 +29,7 @@ import {
   Unlink,
   AlertTriangle,
   Save,
+  Info,
 } from 'lucide-react';
 
 // Meta and Google icons as SVG
@@ -386,18 +392,44 @@ export default function Connections() {
                   <p className="text-sm text-muted-foreground">
                     Conecte sua conta do Meta Business para importar métricas de campanhas do Facebook e Instagram.
                   </p>
-                  <Button 
-                    className="w-full btn-glow"
-                    onClick={handleConnectMeta}
-                    disabled={connectingMeta || hasNoClient || !metaAdAccountId.trim()}
-                  >
-                    {connectingMeta ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <ExternalLink className="h-4 w-4 mr-2" />
+                  
+                  {/* Feedback visual quando ID não preenchido */}
+                  {!metaAdAccountId.trim() && !hasNoClient && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30">
+                      <Info className="h-4 w-4 text-warning flex-shrink-0" />
+                      <p className="text-sm text-warning">
+                        Preencha o ID da Conta de Anúncios acima antes de conectar
+                      </p>
+                    </div>
+                  )}
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="w-full">
+                        <Button 
+                          className="w-full btn-glow"
+                          onClick={handleConnectMeta}
+                          disabled={connectingMeta || hasNoClient || !metaAdAccountId.trim()}
+                        >
+                          {connectingMeta ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                          )}
+                          Conectar Meta Ads
+                        </Button>
+                      </div>
+                    </TooltipTrigger>
+                    {(!metaAdAccountId.trim() || hasNoClient) && (
+                      <TooltipContent>
+                        <p>
+                          {hasNoClient 
+                            ? 'Selecione um cliente primeiro' 
+                            : 'Preencha o ID da Conta de Anúncios primeiro'}
+                        </p>
+                      </TooltipContent>
                     )}
-                    Conectar Meta Ads
-                  </Button>
+                  </Tooltip>
                 </>
               )}
             </CardContent>
@@ -486,18 +518,44 @@ export default function Connections() {
                   <p className="text-sm text-muted-foreground">
                     Conecte sua conta do Google Ads para importar métricas de campanhas de Search, Display e YouTube.
                   </p>
-                  <Button 
-                    className="w-full btn-glow"
-                    onClick={handleConnectGoogle}
-                    disabled={connectingGoogle || hasNoClient || !googleCustomerId.trim()}
-                  >
-                    {connectingGoogle ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <ExternalLink className="h-4 w-4 mr-2" />
+                  
+                  {/* Feedback visual quando ID não preenchido */}
+                  {!googleCustomerId.trim() && !hasNoClient && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30">
+                      <Info className="h-4 w-4 text-warning flex-shrink-0" />
+                      <p className="text-sm text-warning">
+                        Preencha o Customer ID acima antes de conectar
+                      </p>
+                    </div>
+                  )}
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="w-full">
+                        <Button 
+                          className="w-full btn-glow"
+                          onClick={handleConnectGoogle}
+                          disabled={connectingGoogle || hasNoClient || !googleCustomerId.trim()}
+                        >
+                          {connectingGoogle ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                          )}
+                          Conectar Google Ads
+                        </Button>
+                      </div>
+                    </TooltipTrigger>
+                    {(!googleCustomerId.trim() || hasNoClient) && (
+                      <TooltipContent>
+                        <p>
+                          {hasNoClient 
+                            ? 'Selecione um cliente primeiro' 
+                            : 'Preencha o Customer ID primeiro'}
+                        </p>
+                      </TooltipContent>
                     )}
-                    Conectar Google Ads
-                  </Button>
+                  </Tooltip>
                 </>
               )}
             </CardContent>

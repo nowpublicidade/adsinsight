@@ -129,7 +129,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1">
+          <nav className="flex-1 p-4 space-y-1 relative z-10">
             {navItems.map((item) => {
               const isActive = location.pathname === item.href;
               return (
@@ -138,13 +138,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   to={item.href}
                   onClick={() => setSidebarOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
+                    "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors relative z-10 cursor-pointer",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <item.icon className="h-5 w-5" />
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
                   <span className="font-medium">{item.label}</span>
                 </Link>
               );
