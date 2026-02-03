@@ -1,96 +1,136 @@
 
 
-## Sistema de Relatórios Meta Ads + Google Ads
+# Plano de Implementação: Páginas e Conexões OAuth
 
-Implementação completa do sistema de relatórios com:
+## Problemas Identificados
 
----
+### 1. Páginas Relatórios e Configurações (404 Error)
+As rotas `/dashboard/reports` e `/dashboard/settings` estão referenciadas no menu lateral (`DashboardLayout.tsx`), mas:
+- As páginas **não existem** no diretório `src/pages/dashboard/`
+- As rotas **não estão configuradas** no `App.tsx`
 
-### 🗄️ Fase 1: Backend (Supabase)
+### 2. Botão "Conectar" Não Funciona
+A conexão OAuth depende do `clientId` vindo do `AuthContext`. Se o usuário não está vinculado a um cliente:
+- `clientId` será `null`
+- A função `handleConnectMeta/Google` envia `client_id: null` para a Edge Function
+- A Edge Function retorna erro 400 (client_id is required)
+- O erro não é exibido ao usuário de forma clara
 
-**Banco de Dados:**
-- Tabela `clients` - dados de clientes + tokens OAuth
-- Tabela `user_profiles` - perfis vinculados aos clientes  
-- Tabela `user_roles` - roles separadas (admin/client) para segurança
-- Tabela `reports` - múltiplos relatórios por cliente
-- Tabela `report_widgets` - métricas de cada relatório
-- Tabela `subscription_plans` - planos de uso (gratuito inicial)
-- Funções de segurança `has_role()` e `current_user_client_id()`
-- Políticas RLS completas
+### 3. Fluxo de Configuração de Dados
+Os dados de anúncios serão extraídos através das conexões OAuth que salvam os tokens na tabela `clients`:
+- Meta: `meta_access_token`, `meta_ad_account_id`, etc.
+- Google: `google_access_token`, `google_refresh_token`, `google_customer_id`, etc.
 
-**Edge Functions:**
-1. `meta-oauth-start` - Iniciar fluxo OAuth Meta
-2. `meta-oauth-callback` - Processar retorno e salvar tokens
-3. `meta-token-refresh` - Renovar tokens automaticamente
-4. `meta-ads-insights` - Buscar dados + métricas do Pixel
-5. `google-oauth-start` - Iniciar fluxo OAuth Google
-6. `google-oauth-callback` - Processar retorno + descobrir Account ID
-7. `google-token-refresh` - Renovar tokens
-8. `google-ads-insights` - Buscar dados de campanhas
+As Edge Functions `meta-ads-insights` e `google-ads-insights` usam esses tokens para buscar métricas.
 
 ---
 
-### 🎨 Fase 2: Tema & Design
+## Solução Proposta
 
-- Configurar **dark mode** como padrão
-- Cores: fundo escuro, acentos em cyan/azul
-- Cards com bordas sutis e glow effects
-- Responsivo para desktop e mobile
+### Tarefa 1: Criar Página de Relatórios (`/dashboard/reports`)
 
----
+Funcionalidades:
+- Listar relatórios do cliente (tabela `reports`)
+- Criar/editar relatórios personalizados
+- Visualizar métricas com widgets configuráveis
+- Exportar relatórios (PDF/CSV futuro)
 
-### 👤 Fase 3: Autenticação
+**Estrutura da página:**
+- Lista de relatórios existentes
+- Botão "Novo Relatório"
+- Visualização detalhada de cada relatório com métricas do Meta/Google Ads
 
-- Página `/auth` com login e cadastro
-- Validação de email/senha com Zod
-- Redirect automático baseado em role
-- Context de autenticação global
+### Tarefa 2: Criar Página de Configurações (`/dashboard/settings`)
 
----
+Funcionalidades:
+- Dados do perfil do usuário
+- Preferências de notificação
+- Configurações de visualização (tema, formato de data, moeda)
+- Para admins: configurações adicionais do cliente
 
-### 🔐 Fase 4: Painel Admin (`/admin`)
+### Tarefa 3: Corrigir Conexões OAuth
 
-- Lista de clientes com status de conexão
-- Modal para criar/editar clientes
-- Indicadores visuais: Meta ✓/✗, Google ✓/✗
-- Gerenciamento de usuários
+**Problema identificado:** O botão conectar não funciona porque:
+1. O usuário admin pode não ter `clientId` vinculado
+2. Não há feedback visual quando ocorre erro
 
----
+**Correções:**
+- Mostrar mensagem clara se não há cliente vinculado
+- Exibir toast de erro quando a Edge Function falhar
+- Para admins: permitir selecionar qual cliente conectar
+- Verificar resposta da Edge Function antes de redirecionar
 
-### 📊 Fase 5: Dashboard do Cliente (`/dashboard`)
+### Tarefa 4: Adicionar Rotas ao App.tsx
 
-**Configurações:**
-- Upload de logo
-- Editar perfil (nome, email, WhatsApp)
-- Botões de conexão OAuth (Meta/Google)
-
-**Relatórios:**
-- Criar/duplicar/excluir relatórios
-- Seletor de período (7d, 14d, 30d, 90d, custom)
-- Toggle comparação de períodos
-- Cards de métricas com variação %
-- Gráficos interativos (Recharts)
-
-**Personalização:**
-- Modal de seleção de métricas
-- Drag-and-drop para reordenar
-- Escolher visualização (card/gráfico)
-- Filtro por plataforma
+Registrar as novas páginas:
+```text
+/dashboard/reports   -> Reports.tsx
+/dashboard/settings  -> Settings.tsx
+```
 
 ---
 
-### 📈 Fase 6: Métricas Completas
+## Detalhamento Técnico
 
-**Gerais:** Gasto, Leads, CPL, Impressões, Alcance, Cliques, CTR, CPC, CPM, Frequência
+### Arquivos a Criar:
+1. `src/pages/dashboard/Reports.tsx` - Página de relatórios
+2. `src/pages/dashboard/Settings.tsx` - Página de configurações
 
-**Pixel Meta:** Compras, Valor, ROAS, Custo/Compra, Add to Cart, Checkout, View Content, Registros, Leads Pixel
+### Arquivos a Modificar:
+1. `src/App.tsx` - Adicionar rotas
+2. `src/pages/dashboard/Connections.tsx` - Corrigir tratamento de erros e feedback
+
+### Fluxo de Dados de Anúncios:
+
+```text
++------------------+     +-----------------+     +------------------+
+|   Conexões       | --> |  clients table  | --> |  Edge Functions  |
+| (OAuth tokens)   |     | (tokens saved)  |     | (fetch metrics)  |
++------------------+     +-----------------+     +------------------+
+                                                         |
+                                                         v
++------------------+     +-----------------+     +------------------+
+|   Dashboard      | <-- |   API Response  | <-- | Meta/Google API  |
+| (display data)   |     |   (metrics)     |     | (ads insights)   |
++------------------+     +-----------------+     +------------------+
+```
+
+### Correção do Botão Conectar:
+
+A lógica atual:
+```typescript
+const handleConnectMeta = async () => {
+  setConnectingMeta(true);
+  try {
+    const { data, error } = await supabase.functions.invoke('meta-oauth-start', {
+      body: { client_id: clientId },  // clientId pode ser null!
+    });
+    if (error) throw error;
+    if (data?.authUrl) {
+      window.location.href = data.authUrl;
+    }
+  } catch (error) {
+    toast.error('Erro ao iniciar conexão: ' + error.message);
+    setConnectingMeta(false);
+  }
+};
+```
+
+**Problema:** Se `clientId` for `null`, a Edge Function retorna erro, mas `supabase.functions.invoke` pode não capturar isso corretamente.
+
+**Solução:**
+1. Verificar se `clientId` existe antes de chamar a função
+2. Verificar o conteúdo da resposta `data` para erros
+3. Mostrar mensagem apropriada se não há cliente vinculado
 
 ---
 
-### 🔗 Fase 7: Integrações
+## Resumo das Alterações
 
-- Fluxo OAuth Meta v24.0 completo
-- Fluxo OAuth Google Ads v19
-- Renovação automática de tokens
-- Descoberta automática de Account ID
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `src/pages/dashboard/Reports.tsx` | Criar | Página de relatórios |
+| `src/pages/dashboard/Settings.tsx` | Criar | Página de configurações |
+| `src/App.tsx` | Editar | Adicionar rotas reports e settings |
+| `src/pages/dashboard/Connections.tsx` | Editar | Melhorar tratamento de erros e feedback |
 
