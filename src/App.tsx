@@ -12,6 +12,7 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import Dashboard from "./pages/dashboard/Dashboard";
 import Connections from "./pages/dashboard/Connections";
 import Reports from "./pages/dashboard/Reports";
+import ReportEditor from "./pages/dashboard/ReportEditor";
 import Settings from "./pages/dashboard/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -68,6 +69,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Reports />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dashboard/reports/:reportId/edit" 
+              element={
+                <ProtectedRoute>
+                  <ReportEditor />
                 </ProtectedRoute>
               } 
             />

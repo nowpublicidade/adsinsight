@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -25,18 +27,21 @@ import {
   MoreVertical,
   Pencil,
   Trash2,
-  Eye,
+  Settings,
+  BarChart3,
 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
 export default function Reports() {
   const { clientId, isAdmin } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<any>(null);
@@ -256,14 +261,15 @@ export default function Reports() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => toast.info('Visualização em breve')}>
-                          <Eye className="h-4 w-4 mr-2" />
-                          Visualizar
+                        <DropdownMenuItem onClick={() => navigate(`/dashboard/reports/${report.id}/edit`)}>
+                          <Settings className="h-4 w-4 mr-2" />
+                          Configurar Métricas
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleEdit(report)}>
                           <Pencil className="h-4 w-4 mr-2" />
-                          Editar
+                          Editar Informações
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem 
                           onClick={() => deleteMutation.mutate(report.id)}
                           className="text-destructive"
