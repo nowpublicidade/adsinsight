@@ -26,20 +26,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-
-// Mock data for charts
-const mockChartData = [
-  { date: '01/01', spend: 1200, leads: 45, conversions: 12 },
-  { date: '02/01', spend: 1400, leads: 52, conversions: 15 },
-  { date: '03/01', spend: 1100, leads: 38, conversions: 10 },
-  { date: '04/01', spend: 1600, leads: 61, conversions: 18 },
-  { date: '05/01', spend: 1350, leads: 48, conversions: 14 },
-  { date: '06/01', spend: 1800, leads: 72, conversions: 22 },
-  { date: '07/01', spend: 1550, leads: 58, conversions: 17 },
-];
 
 // Metric icons mapping
 const metricIcons: Record<string, React.ReactNode> = {
@@ -51,6 +39,7 @@ const metricIcons: Record<string, React.ReactNode> = {
   cpm: <DollarSign className="h-4 w-4" />,
   ctr: <BarChart3 className="h-4 w-4" />,
   leads: <Users className="h-4 w-4" />,
+  pixelLeads: <Users className="h-4 w-4" />,
   costPerLead: <Target className="h-4 w-4" />,
   purchases: <ShoppingCart className="h-4 w-4" />,
   purchaseValue: <DollarSign className="h-4 w-4" />,
@@ -66,7 +55,7 @@ const metricIcons: Record<string, React.ReactNode> = {
 const formatValue = (key: string, value: number | undefined): string => {
   if (value === undefined || value === null) return '-';
   
-  const currencyMetrics = ['spend', 'cost', 'cpc', 'cpm', 'costPerLead', 'costPerPurchase', 'purchaseValue', 'conversionValue', 'costPerConversion'];
+  const currencyMetrics = ['spend', 'cost', 'cpc', 'cpm', 'costPerLead', 'costPerPurchase', 'purchaseValue', 'conversionValue', 'costPerConversion', 'costPerPixelLead', 'average_cpc', 'average_cpm', 'cost_per_conversion'];
   const percentMetrics = ['ctr', 'conversionRate', 'videoViewRate'];
   const roasMetrics = ['roas'];
   
@@ -485,98 +474,125 @@ export default function Dashboard() {
           </>
         )}
 
-        {/* Charts - show when connected */}
-        {hasAnyConnection && (
+        {/* Charts - show when connected with real data */}
+        {hasAnyConnection && (metaData || googleData) && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="card-glow">
               <CardHeader>
-                <CardTitle className="text-lg font-medium">Gastos ao longo do tempo</CardTitle>
+                <CardTitle className="text-lg font-medium">Resumo de Métricas</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={mockChartData}>
-                      <defs>
-                        <linearGradient id="colorSpend" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(188, 95%, 43%)" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="hsl(188, 95%, 43%)" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 47%, 16%)" />
-                      <XAxis 
-                        dataKey="date" 
-                        stroke="hsl(215, 20%, 55%)"
-                        fontSize={12}
-                      />
-                      <YAxis 
-                        stroke="hsl(215, 20%, 55%)"
-                        fontSize={12}
-                        tickFormatter={(value) => `R$${value}`}
-                      />
-                      <Tooltip 
-                        contentStyle={{
-                          backgroundColor: 'hsl(222, 47%, 8%)',
-                          border: '1px solid hsl(222, 47%, 16%)',
-                          borderRadius: '8px',
-                        }}
-                        labelStyle={{ color: 'hsl(210, 40%, 98%)' }}
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="spend" 
-                        stroke="hsl(188, 95%, 43%)" 
-                        fillOpacity={1} 
-                        fill="url(#colorSpend)" 
-                        strokeWidth={2}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                <div className="space-y-4">
+                  {metaData && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Badge variant="outline" className="badge-meta">Meta</Badge>
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Gasto Total</p>
+                          <p className="text-lg font-semibold">{formatValue('spend', metaData.spend)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Leads</p>
+                          <p className="text-lg font-semibold">{metaData.leads || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Leads (Pixel)</p>
+                          <p className="text-lg font-semibold">{metaData.pixelLeads || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Custo por Lead</p>
+                          <p className="text-lg font-semibold">{formatValue('costPerLead', metaData.costPerLead)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {googleData && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Badge variant="outline" className="badge-google">Google</Badge>
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Gasto Total</p>
+                          <p className="text-lg font-semibold">{formatValue('cost', googleData.cost)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Conversões</p>
+                          <p className="text-lg font-semibold">{googleData.conversions || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">CPC Médio</p>
+                          <p className="text-lg font-semibold">{formatValue('cpc', googleData.average_cpc)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Custo por Conversão</p>
+                          <p className="text-lg font-semibold">{formatValue('costPerConversion', googleData.cost_per_conversion)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
 
             <Card className="card-glow">
               <CardHeader>
-                <CardTitle className="text-lg font-medium">Leads e Conversões</CardTitle>
+                <CardTitle className="text-lg font-medium">Performance</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={mockChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 47%, 16%)" />
-                      <XAxis 
-                        dataKey="date" 
-                        stroke="hsl(215, 20%, 55%)"
-                        fontSize={12}
-                      />
-                      <YAxis 
-                        stroke="hsl(215, 20%, 55%)"
-                        fontSize={12}
-                      />
-                      <Tooltip 
-                        contentStyle={{
-                          backgroundColor: 'hsl(222, 47%, 8%)',
-                          border: '1px solid hsl(222, 47%, 16%)',
-                          borderRadius: '8px',
-                        }}
-                        labelStyle={{ color: 'hsl(210, 40%, 98%)' }}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="leads" 
-                        stroke="hsl(217, 91%, 60%)" 
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="conversions" 
-                        stroke="hsl(142, 76%, 36%)" 
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                <div className="space-y-4">
+                  {metaData && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Badge variant="outline" className="badge-meta">Meta</Badge>
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Impressões</p>
+                          <p className="text-lg font-semibold">{formatValue('impressions', metaData.impressions)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Cliques</p>
+                          <p className="text-lg font-semibold">{formatValue('clicks', metaData.clicks)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">CTR</p>
+                          <p className="text-lg font-semibold">{formatValue('ctr', metaData.ctr)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Alcance</p>
+                          <p className="text-lg font-semibold">{formatValue('reach', metaData.reach)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {googleData && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Badge variant="outline" className="badge-google">Google</Badge>
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Impressões</p>
+                          <p className="text-lg font-semibold">{formatValue('impressions', googleData.impressions)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Cliques</p>
+                          <p className="text-lg font-semibold">{formatValue('clicks', googleData.clicks)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">CTR</p>
+                          <p className="text-lg font-semibold">{formatValue('ctr', googleData.ctr)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">CPM Médio</p>
+                          <p className="text-lg font-semibold">{formatValue('cpm', googleData.average_cpm)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

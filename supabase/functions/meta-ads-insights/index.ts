@@ -99,29 +99,72 @@ serve(async (req) => {
     // Process the data
     const rawData = insightsData.data?.[0] || {};
     
-    // Helper to find action value
-    const getActionValue = (actions: any[], actionType: string) => {
+    // Helper to find action value - checks multiple action_type variations
+    const getActionValue = (actions: any[], ...actionTypes: string[]) => {
       if (!actions) return 0;
-      const action = actions.find((a: any) => a.action_type === actionType);
-      return action ? parseFloat(action.value) : 0;
+      for (const actionType of actionTypes) {
+        const action = actions.find((a: any) => a.action_type === actionType);
+        if (action) return parseFloat(action.value);
+      }
+      return 0;
     };
 
-    // Helper to find action cost
-    const getActionCost = (costs: any[], actionType: string) => {
+    // Helper to find action cost - checks multiple action_type variations
+    const getActionCost = (costs: any[], ...actionTypes: string[]) => {
       if (!costs) return 0;
-      const cost = costs.find((c: any) => c.action_type === actionType);
-      return cost ? parseFloat(cost.value) : 0;
+      for (const actionType of actionTypes) {
+        const cost = costs.find((c: any) => c.action_type === actionType);
+        if (cost) return parseFloat(cost.value);
+      }
+      return 0;
     };
 
-    // Extract Pixel metrics
-    const purchases = getActionValue(rawData.actions, 'purchase');
-    const purchaseValue = getActionValue(rawData.action_values, 'purchase');
-    const addToCart = getActionValue(rawData.actions, 'add_to_cart');
-    const initiateCheckout = getActionValue(rawData.actions, 'initiate_checkout');
-    const viewContent = getActionValue(rawData.actions, 'view_content');
-    const completeRegistration = getActionValue(rawData.actions, 'complete_registration');
-    const leads = getActionValue(rawData.actions, 'lead');
-    const messageLeads = getActionValue(rawData.actions, 'onsite_conversion.messaging_conversation_started_7d');
+    // Extract Pixel metrics - check multiple action_type variations
+    const purchases = getActionValue(rawData.actions, 
+      'purchase', 
+      'offsite_conversion.fb_pixel_purchase',
+      'omni_purchase'
+    );
+    const purchaseValue = getActionValue(rawData.action_values, 
+      'purchase',
+      'offsite_conversion.fb_pixel_purchase',
+      'omni_purchase'
+    );
+    const addToCart = getActionValue(rawData.actions, 
+      'add_to_cart',
+      'offsite_conversion.fb_pixel_add_to_cart',
+      'omni_add_to_cart'
+    );
+    const initiateCheckout = getActionValue(rawData.actions, 
+      'initiate_checkout',
+      'offsite_conversion.fb_pixel_initiate_checkout',
+      'omni_initiated_checkout'
+    );
+    const viewContent = getActionValue(rawData.actions, 
+      'view_content',
+      'offsite_conversion.fb_pixel_view_content',
+      'omni_view_content'
+    );
+    const completeRegistration = getActionValue(rawData.actions, 
+      'complete_registration',
+      'offsite_conversion.fb_pixel_complete_registration',
+      'omni_complete_registration'
+    );
+    
+    // Leads - check all possible lead action types
+    const pixelLeads = getActionValue(rawData.actions, 
+      'lead',
+      'offsite_conversion.fb_pixel_lead',
+      'omni_lead'
+    );
+    const messageLeads = getActionValue(rawData.actions, 
+      'onsite_conversion.messaging_conversation_started_7d',
+      'onsite_conversion.lead_grouped',
+      'onsite_web_lead'
+    );
+    
+    // Total leads = pixel leads + message leads
+    const totalLeads = pixelLeads + messageLeads;
     
     const spend = parseFloat(rawData.spend || 0);
     
@@ -131,7 +174,8 @@ serve(async (req) => {
     const costPerAddToCart = addToCart > 0 ? spend / addToCart : 0;
     const costPerCheckout = initiateCheckout > 0 ? spend / initiateCheckout : 0;
     const costPerRegistration = completeRegistration > 0 ? spend / completeRegistration : 0;
-    const costPerLead = leads > 0 ? spend / leads : 0;
+    const costPerLead = totalLeads > 0 ? spend / totalLeads : 0;
+    const costPerPixelLead = pixelLeads > 0 ? spend / pixelLeads : 0;
 
     const metrics = {
       // General metrics
@@ -145,9 +189,11 @@ serve(async (req) => {
       frequency: parseFloat(rawData.frequency || 0),
       
       // Lead metrics
-      leads,
+      leads: totalLeads,
+      pixelLeads,          // Leads specifically from Pixel
       messageLeads,
       costPerLead,
+      costPerPixelLead,
       
       // Pixel/Conversion metrics
       purchases,
@@ -163,7 +209,12 @@ serve(async (req) => {
       costPerRegistration,
     };
 
-    console.log('Successfully fetched Meta Ads insights');
+    console.log('Successfully fetched Meta Ads insights:', JSON.stringify({
+      pixelLeads,
+      messageLeads,
+      totalLeads,
+      rawActions: rawData.actions?.map((a: any) => a.action_type)
+    }));
 
     return new Response(
       JSON.stringify({ metrics, raw: rawData }),
