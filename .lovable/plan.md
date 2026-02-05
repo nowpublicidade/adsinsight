@@ -1,136 +1,184 @@
 
 
-# Plano de Correções: Navegação, Conexões e Integração de Relatórios
+# Plano de Correção: Dados do Google Ads no Dashboard
 
 ## Problemas Identificados
 
-### 1. Links "Conexões" e "Configurações" não clicáveis
-Após análise do código, os links estão corretos no `DashboardLayout.tsx` e as rotas estão registradas no `App.tsx`. O problema é que o usuário **está na rota `/dashboard`** e os links funcionam, mas pode haver:
-- Um elemento sobrepondo os links (z-index)
-- A área clicável pode estar sendo afetada pelo CSS do sidebar
+### Problema 1: Incompatibilidade de Nomes de Métricas
 
-### 2. Botão "Conectar Meta Ads" - Por que não funciona?
-O botão está **desabilitado propositalmente** quando:
-- Não há cliente selecionado
-- O campo "ID da Conta de Anúncios" está vazio
+Os widgets configurados usam chaves diferentes das que a Edge Function retorna:
 
-Isso é o comportamento correto, mas precisa de melhor feedback visual para o usuário entender que deve inserir o ID primeiro.
+| Widget (ReportEditor) | Edge Function Retorna | Status |
+|-----------------------|------------------------|--------|
+| `cost` | `spend` | Incompatível |
+| `average_cpc` | `cpc` | Incompatível |
+| `average_cpm` | Não retorna | Falta |
 
-### 3. Relatórios Personalizados e Dashboard
-Atualmente o sistema funciona assim:
+### Problema 2: Customer ID com Formato Incorreto
 
-```text
-Relatórios (criar) --> ReportEditor (configurar métricas) --> ???
-```
+O `google_customer_id` está salvo como `985-884-3262` (com hífens), mas a API do Google Ads espera o ID sem hífens: `9858843262`.
 
-O problema é que **não existe** uma tela para **visualizar** os relatórios configurados com dados reais. Os relatórios são configurados mas nunca são exibidos.
+### Problema 3: `date_preset` Ignorado
 
-O Dashboard atual mostra métricas fixas/mockadas, **sem nenhuma integração** com os relatórios personalizados.
+A Edge Function recebe `date_preset: "last_7d"` do frontend, mas o código só processa `date_range.start` e `date_range.end`. O parâmetro `date_preset` é ignorado.
 
 ---
 
 ## Solução Proposta
 
-### Tarefa 1: Corrigir Navegação do Sidebar
-Verificar e corrigir possíveis problemas de z-index ou sobreposição de elementos no sidebar.
+### Tarefa 1: Corrigir Formato do Customer ID
 
-**Arquivos:**
-- `src/components/layout/DashboardLayout.tsx`
+Remover os hífens do `google_customer_id` antes de fazer a requisição à API.
 
-### Tarefa 2: Melhorar Feedback do Botão Conectar
-Adicionar mensagens claras e estados visuais para o botão conectar:
-- Mostrar tooltip explicando por que está desabilitado
-- Destacar visualmente que o ID precisa ser preenchido primeiro
-- Adicionar validação inline
+**Arquivo:** `supabase/functions/google-ads-insights/index.ts`
 
-**Arquivos:**
-- `src/pages/dashboard/Connections.tsx`
+```typescript
+// Antes
+const customerId = client.google_customer_id;
 
-### Tarefa 3: Criar Visualização de Relatório
-Criar uma página para visualizar os relatórios com as métricas configuradas.
+// Depois
+const customerId = client.google_customer_id.replace(/-/g, '');
+```
 
-**Nova página:** `/dashboard/reports/:reportId/view`
-- Buscar widgets configurados do relatório
-- Buscar dados reais das Edge Functions (`meta-ads-insights`, `google-ads-insights`)
-- Renderizar as métricas configuradas em formato de cards/gráficos
+### Tarefa 2: Adicionar Suporte a `date_preset`
 
-**Arquivos:**
-- `src/pages/dashboard/ReportViewer.tsx` (novo)
-- `src/App.tsx` (adicionar rota)
-- `src/pages/dashboard/Reports.tsx` (adicionar botão "Visualizar")
+Implementar conversão de `date_preset` para datas de início/fim.
 
-### Tarefa 4: Integrar Relatórios ao Dashboard
-Modificar o Dashboard para mostrar relatórios do cliente ou permitir seleção de um relatório padrão.
+**Arquivo:** `supabase/functions/google-ads-insights/index.ts`
 
-**Opções:**
-1. O Dashboard exibe o primeiro relatório configurado
-2. O Dashboard lista todos os relatórios como cards clicáveis
-3. O usuário pode definir um "relatório padrão" nas configurações
+```typescript
+function getDateRangeFromPreset(preset: string): { start: string; end: string } {
+  const now = new Date();
+  const end = now.toISOString().split('T')[0].replace(/-/g, '');
+  
+  switch (preset) {
+    case 'today':
+      return { start: end, end };
+    case 'yesterday':
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yDate = yesterday.toISOString().split('T')[0].replace(/-/g, '');
+      return { start: yDate, end: yDate };
+    case 'last_7d':
+      const start7 = new Date(now);
+      start7.setDate(start7.getDate() - 7);
+      return { start: start7.toISOString().split('T')[0].replace(/-/g, ''), end };
+    // ... outros casos
+  }
+}
+```
 
-**Arquivos:**
-- `src/pages/dashboard/Dashboard.tsx`
+### Tarefa 3: Padronizar Nomes das Métricas
+
+Atualizar a Edge Function para retornar métricas com as mesmas chaves que o ReportEditor espera.
+
+**Arquivo:** `supabase/functions/google-ads-insights/index.ts`
+
+| Chave Atual | Nova Chave | Descrição |
+|-------------|------------|-----------|
+| `spend` | `cost` | Para alinhar com ReportEditor |
+| `cpc` | `average_cpc` | CPC Médio |
+| (novo) | `average_cpm` | CPM Médio calculado |
+
+**Ou alternativamente**, atualizar o ReportEditor para usar as mesmas chaves que a API retorna:
+
+| Chave Atual (ReportEditor) | Nova Chave | 
+|----------------------------|------------|
+| `cost` | `spend` |
+| `average_cpc` | `cpc` |
+| `average_cpm` | `cpm` |
+
+**Recomendação**: Atualizar a Edge Function para manter compatibilidade com a convenção do Google Ads (cost, average_cpc, etc.) e manter consistência.
 
 ---
 
-## Detalhamento Técnico
-
-### Visualização de Relatório
-
-```text
-ReportViewer.tsx
-    |
-    +--> Busca report (supabase.from('reports'))
-    +--> Busca report_widgets (supabase.from('report_widgets'))
-    |
-    +--> Para cada widget:
-         |
-         +--> Se platform = 'meta':
-         |      Busca dados de meta-ads-insights Edge Function
-         |
-         +--> Se platform = 'google':
-                Busca dados de google-ads-insights Edge Function
-    |
-    +--> Renderiza widgets como MetricCard
-```
-
-### Fluxo Completo do Sistema
-
-```text
-Relatórios --> Criar Relatório --> ReportEditor (configurar métricas)
-                                          |
-                                          v
-                                  report_widgets (salvo no banco)
-                                          |
-                                          v
-Dashboard / ReportViewer --> Buscar widgets --> Buscar dados APIs --> Exibir métricas
-```
-
-### ID da Conta de Anúncios
-Os IDs são salvos na tabela `clients`:
-- `meta_ad_account_id`: Para buscar dados da API Meta
-- `google_customer_id`: Para buscar dados da API Google
-
-As Edge Functions usam estes IDs para fazer as requisições às APIs.
-
----
-
-## Arquivos a Criar/Modificar
+## Arquivos a Modificar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/components/layout/DashboardLayout.tsx` | Modificar | Corrigir z-index do sidebar |
-| `src/pages/dashboard/Connections.tsx` | Modificar | Melhorar feedback visual |
-| `src/pages/dashboard/ReportViewer.tsx` | **Criar** | Página para visualizar relatório |
-| `src/pages/dashboard/Reports.tsx` | Modificar | Adicionar botão "Visualizar" |
-| `src/pages/dashboard/Dashboard.tsx` | Modificar | Integrar com relatórios |
-| `src/App.tsx` | Modificar | Adicionar rota de visualização |
+| `supabase/functions/google-ads-insights/index.ts` | Modificar | Corrigir formato do customer_id, adicionar suporte a date_preset, padronizar métricas |
+| `src/pages/dashboard/ReportEditor.tsx` | Modificar | Atualizar chaves das métricas Google para corresponder à API |
+| `src/pages/dashboard/Dashboard.tsx` | Verificar | Garantir que o mapeamento de ícones inclui as chaves corretas |
+| `src/pages/dashboard/ReportViewer.tsx` | Verificar | Mesmo mapeamento de chaves |
 
 ---
 
-## Prioridades
+## Detalhamento da Correção na Edge Function
 
-1. **Alta**: Corrigir navegação do sidebar (links não clicáveis)
-2. **Alta**: Criar visualização de relatório com métricas reais
-3. **Média**: Integrar relatórios ao Dashboard principal
-4. **Média**: Melhorar UX do botão Conectar
+```typescript
+// 1. Remover hífens do customer ID
+const customerId = client.google_customer_id.replace(/-/g, '');
+
+// 2. Processar date_preset
+const { client_id, date_preset, date_range } = await req.json();
+
+function getDateRange(preset?: string, range?: { start: string; end: string }) {
+  if (range?.start && range?.end) {
+    return range;
+  }
+  
+  const now = new Date();
+  const formatDate = (d: Date) => d.toISOString().split('T')[0];
+  
+  switch (preset) {
+    case 'today':
+      return { start: formatDate(now), end: formatDate(now) };
+    case 'yesterday':
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return { start: formatDate(yesterday), end: formatDate(yesterday) };
+    case 'last_7d':
+    default:
+      const start = new Date(now);
+      start.setDate(start.getDate() - 7);
+      return { start: formatDate(start), end: formatDate(now) };
+    case 'last_14d':
+      const start14 = new Date(now);
+      start14.setDate(start14.getDate() - 14);
+      return { start: formatDate(start14), end: formatDate(now) };
+    case 'last_30d':
+      const start30 = new Date(now);
+      start30.setDate(start30.getDate() - 30);
+      return { start: formatDate(start30), end: formatDate(now) };
+    case 'this_month':
+      const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { start: formatDate(thisMonth), end: formatDate(now) };
+    case 'last_month':
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { start: formatDate(lastMonthStart), end: formatDate(lastMonthEnd) };
+  }
+}
+
+// 3. Padronizar métricas de saída
+const metrics = {
+  cost: totalSpend,  // Renomeado de 'spend' para 'cost'
+  impressions: totalImpressions,
+  clicks: totalClicks,
+  ctr,
+  average_cpc: cpc,  // Renomeado de 'cpc' para 'average_cpc'
+  average_cpm: totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0,  // Novo
+  conversions: totalConversions,
+  conversion_value: totalConversionValue,
+  cost_per_conversion: cpl,
+};
+```
+
+---
+
+## Ordem de Execução
+
+1. **Atualizar Edge Function** - Corrigir formato do customer_id, adicionar date_preset, padronizar métricas
+2. **Atualizar ReportEditor** - Garantir que as chaves correspondem
+3. **Testar** - Verificar se os dados aparecem no dashboard
+4. **Deploy** - Reimplantar a Edge Function
+
+---
+
+## Resultado Esperado
+
+Após as correções:
+- Os dados do Google Ads aparecerão no dashboard
+- As métricas terão valores reais (se houver dados na conta)
+- O seletor de período funcionará corretamente
 
