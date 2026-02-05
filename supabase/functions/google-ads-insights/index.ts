@@ -6,13 +6,59 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Convert date_preset to date range
+function getDateRange(preset?: string, range?: { start: string; end: string }): { start: string; end: string } {
+  // If explicit range provided, use it
+  if (range?.start && range?.end) {
+    return range;
+  }
+  
+  const now = new Date();
+  const formatDate = (d: Date) => d.toISOString().split('T')[0];
+  
+  switch (preset) {
+    case 'today':
+      return { start: formatDate(now), end: formatDate(now) };
+    case 'yesterday': {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return { start: formatDate(yesterday), end: formatDate(yesterday) };
+    }
+    case 'last_14d': {
+      const start14 = new Date(now);
+      start14.setDate(start14.getDate() - 14);
+      return { start: formatDate(start14), end: formatDate(now) };
+    }
+    case 'last_30d': {
+      const start30 = new Date(now);
+      start30.setDate(start30.getDate() - 30);
+      return { start: formatDate(start30), end: formatDate(now) };
+    }
+    case 'this_month': {
+      const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { start: formatDate(thisMonth), end: formatDate(now) };
+    }
+    case 'last_month': {
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { start: formatDate(lastMonthStart), end: formatDate(lastMonthEnd) };
+    }
+    case 'last_7d':
+    default: {
+      const start7 = new Date(now);
+      start7.setDate(start7.getDate() - 7);
+      return { start: formatDate(start7), end: formatDate(now) };
+    }
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { client_id, date_range } = await req.json();
+    const { client_id, date_preset, date_range } = await req.json();
 
     if (!client_id) {
       return new Response(
@@ -101,20 +147,15 @@ serve(async (req) => {
       console.log('Token refreshed successfully');
     }
 
-    // Calculate date range
-    const endDate = new Date();
-    const startDate = new Date();
-    
-    if (date_range?.start && date_range?.end) {
-      // Use provided date range
-    } else {
-      // Default to last 7 days
-      startDate.setDate(startDate.getDate() - 7);
-    }
+    // Get date range from preset or explicit range
+    const dateRange = getDateRange(date_preset, date_range);
+    const start = dateRange.start;
+    const end = dateRange.end;
 
-    const formatDate = (d: Date) => d.toISOString().split('T')[0].replace(/-/g, '');
-    const start = date_range?.start || formatDate(startDate);
-    const end = date_range?.end || formatDate(endDate);
+    console.log(`Date range: ${start} to ${end} (preset: ${date_preset})`);
+
+    // Remove hyphens from customer ID - Google Ads API requires ID without hyphens
+    const customerId = client.google_customer_id.replace(/-/g, '');
 
     // Build Google Ads API query
     const query = `
@@ -128,13 +169,13 @@ serve(async (req) => {
         metrics.conversions_value,
         metrics.cost_per_conversion
       FROM customer
-      WHERE segments.date BETWEEN '${start.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')}' AND '${end.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')}'
+      WHERE segments.date BETWEEN '${start}' AND '${end}'
     `;
 
-    console.log('Fetching Google Ads data for customer:', client.google_customer_id);
+    console.log('Fetching Google Ads data for customer:', customerId);
 
     const gaqlResponse = await fetch(
-      `https://googleads.googleapis.com/v19/customers/${client.google_customer_id}/googleAds:searchStream`,
+      `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:searchStream`,
       {
         method: 'POST',
         headers: {
@@ -178,20 +219,23 @@ serve(async (req) => {
     // Calculate derived metrics
     const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
     const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
+    const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0;
     const cpl = totalConversions > 0 ? totalSpend / totalConversions : 0;
 
+    // Standardized metric names to match ReportEditor expectations
     const metrics = {
-      spend: totalSpend,
+      cost: totalSpend,                    // Renamed from 'spend'
       impressions: totalImpressions,
       clicks: totalClicks,
       ctr,
-      cpc,
+      average_cpc: cpc,                    // Renamed from 'cpc'
+      average_cpm: cpm,                    // New metric
       conversions: totalConversions,
-      conversionValue: totalConversionValue,
-      costPerConversion: cpl,
+      conversion_value: totalConversionValue,
+      cost_per_conversion: cpl,
     };
 
-    console.log('Successfully fetched Google Ads insights');
+    console.log('Successfully fetched Google Ads insights:', JSON.stringify(metrics));
 
     return new Response(
       JSON.stringify({ metrics }),
