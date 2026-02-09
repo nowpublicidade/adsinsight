@@ -69,7 +69,8 @@ serve(async (req) => {
     ].join(',');
 
     const accessToken = client.meta_access_token;
-    const adAccountId = client.meta_ad_account_id;
+    const rawAdAccountId = client.meta_ad_account_id;
+    const adAccountId = rawAdAccountId.startsWith('act_') ? rawAdAccountId : `act_${rawAdAccountId}`;
 
     // Helper functions
     const getActionValue = (actions: any[], ...actionTypes: string[]) => {
