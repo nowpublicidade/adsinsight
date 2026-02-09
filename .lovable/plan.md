@@ -1,184 +1,233 @@
 
 
-# Plano de Correção: Dados do Google Ads no Dashboard
+# Plano: Redesign Completo do Dashboard - Layout Multi-Plataforma
 
-## Problemas Identificados
+## Resumo
 
-### Problema 1: Incompatibilidade de Nomes de Métricas
-
-Os widgets configurados usam chaves diferentes das que a Edge Function retorna:
-
-| Widget (ReportEditor) | Edge Function Retorna | Status |
-|-----------------------|------------------------|--------|
-| `cost` | `spend` | Incompatível |
-| `average_cpc` | `cpc` | Incompatível |
-| `average_cpm` | Não retorna | Falta |
-
-### Problema 2: Customer ID com Formato Incorreto
-
-O `google_customer_id` está salvo como `985-884-3262` (com hífens), mas a API do Google Ads espera o ID sem hífens: `9858843262`.
-
-### Problema 3: `date_preset` Ignorado
-
-A Edge Function recebe `date_preset: "last_7d"` do frontend, mas o código só processa `date_range.start` e `date_range.end`. O parâmetro `date_preset` é ignorado.
+Recriar o dashboard seguindo o layout de referencia do Looker Studio, com navegacao lateral por plataforma (Home, Meta Ads, Google Ads, Analytics), sub-abas por plataforma (Visao Geral, Anuncios, Demografico/Historico), KPI cards com barras de comparacao, tabelas de performance, graficos temporais, funil de metricas e integracao com Google Analytics.
 
 ---
 
-## Solução Proposta
+## Estrutura de Paginas
 
-### Tarefa 1: Corrigir Formato do Customer ID
-
-Remover os hífens do `google_customer_id` antes de fazer a requisição à API.
-
-**Arquivo:** `supabase/functions/google-ads-insights/index.ts`
-
-```typescript
-// Antes
-const customerId = client.google_customer_id;
-
-// Depois
-const customerId = client.google_customer_id.replace(/-/g, '');
-```
-
-### Tarefa 2: Adicionar Suporte a `date_preset`
-
-Implementar conversão de `date_preset` para datas de início/fim.
-
-**Arquivo:** `supabase/functions/google-ads-insights/index.ts`
-
-```typescript
-function getDateRangeFromPreset(preset: string): { start: string; end: string } {
-  const now = new Date();
-  const end = now.toISOString().split('T')[0].replace(/-/g, '');
-  
-  switch (preset) {
-    case 'today':
-      return { start: end, end };
-    case 'yesterday':
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yDate = yesterday.toISOString().split('T')[0].replace(/-/g, '');
-      return { start: yDate, end: yDate };
-    case 'last_7d':
-      const start7 = new Date(now);
-      start7.setDate(start7.getDate() - 7);
-      return { start: start7.toISOString().split('T')[0].replace(/-/g, ''), end };
-    // ... outros casos
-  }
-}
-```
-
-### Tarefa 3: Padronizar Nomes das Métricas
-
-Atualizar a Edge Function para retornar métricas com as mesmas chaves que o ReportEditor espera.
-
-**Arquivo:** `supabase/functions/google-ads-insights/index.ts`
-
-| Chave Atual | Nova Chave | Descrição |
-|-------------|------------|-----------|
-| `spend` | `cost` | Para alinhar com ReportEditor |
-| `cpc` | `average_cpc` | CPC Médio |
-| (novo) | `average_cpm` | CPM Médio calculado |
-
-**Ou alternativamente**, atualizar o ReportEditor para usar as mesmas chaves que a API retorna:
-
-| Chave Atual (ReportEditor) | Nova Chave | 
-|----------------------------|------------|
-| `cost` | `spend` |
-| `average_cpc` | `cpc` |
-| `average_cpm` | `cpm` |
-
-**Recomendação**: Atualizar a Edge Function para manter compatibilidade com a convenção do Google Ads (cost, average_cpc, etc.) e manter consistência.
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `supabase/functions/google-ads-insights/index.ts` | Modificar | Corrigir formato do customer_id, adicionar suporte a date_preset, padronizar métricas |
-| `src/pages/dashboard/ReportEditor.tsx` | Modificar | Atualizar chaves das métricas Google para corresponder à API |
-| `src/pages/dashboard/Dashboard.tsx` | Verificar | Garantir que o mapeamento de ícones inclui as chaves corretas |
-| `src/pages/dashboard/ReportViewer.tsx` | Verificar | Mesmo mapeamento de chaves |
-
----
-
-## Detalhamento da Correção na Edge Function
-
-```typescript
-// 1. Remover hífens do customer ID
-const customerId = client.google_customer_id.replace(/-/g, '');
-
-// 2. Processar date_preset
-const { client_id, date_preset, date_range } = await req.json();
-
-function getDateRange(preset?: string, range?: { start: string; end: string }) {
-  if (range?.start && range?.end) {
-    return range;
-  }
-  
-  const now = new Date();
-  const formatDate = (d: Date) => d.toISOString().split('T')[0];
-  
-  switch (preset) {
-    case 'today':
-      return { start: formatDate(now), end: formatDate(now) };
-    case 'yesterday':
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      return { start: formatDate(yesterday), end: formatDate(yesterday) };
-    case 'last_7d':
-    default:
-      const start = new Date(now);
-      start.setDate(start.getDate() - 7);
-      return { start: formatDate(start), end: formatDate(now) };
-    case 'last_14d':
-      const start14 = new Date(now);
-      start14.setDate(start14.getDate() - 14);
-      return { start: formatDate(start14), end: formatDate(now) };
-    case 'last_30d':
-      const start30 = new Date(now);
-      start30.setDate(start30.getDate() - 30);
-      return { start: formatDate(start30), end: formatDate(now) };
-    case 'this_month':
-      const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { start: formatDate(thisMonth), end: formatDate(now) };
-    case 'last_month':
-      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-      return { start: formatDate(lastMonthStart), end: formatDate(lastMonthEnd) };
-  }
-}
-
-// 3. Padronizar métricas de saída
-const metrics = {
-  cost: totalSpend,  // Renomeado de 'spend' para 'cost'
-  impressions: totalImpressions,
-  clicks: totalClicks,
-  ctr,
-  average_cpc: cpc,  // Renomeado de 'cpc' para 'average_cpc'
-  average_cpm: totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0,  // Novo
-  conversions: totalConversions,
-  conversion_value: totalConversionValue,
-  cost_per_conversion: cpl,
-};
+```text
+Sidebar (icones)          Top Bar (tabs)              Conteudo
++--------+   +------------------------------------------+
+| Home   |   | Meta Ads | Google Ads | Analytics        |  <- pagina Home (3 colunas)
+| Meta   |   | Visao Geral | Anuncios | Demografico    |  <- pagina Meta Ads
+| Google |   | Visao Geral | Anuncios | Historico       |  <- pagina Google Ads
+| Analyt.|   | Visao Geral | Origens | Historico | Tec. |  <- pagina Analytics
++--------+   +------------------------------------------+
 ```
 
 ---
 
-## Ordem de Execução
+## Fase 1: Reestruturar Layout e Navegacao (~8-10 creditos)
 
-1. **Atualizar Edge Function** - Corrigir formato do customer_id, adicionar date_preset, padronizar métricas
-2. **Atualizar ReportEditor** - Garantir que as chaves correspondem
-3. **Testar** - Verificar se os dados aparecem no dashboard
-4. **Deploy** - Reimplantar a Edge Function
+### 1.1 Novo DashboardLayout com sidebar de icones
+
+- Substituir sidebar textual atual por sidebar compacta (apenas icones: Home, Meta, Google Ads, Analytics)
+- Manter logo no topo
+- Icones com tooltip ao hover
+- Cor de destaque quando ativo (roxo/azul conforme referencia)
+
+### 1.2 Novas rotas
+
+- `/dashboard` - Home (visao geral 3 colunas)
+- `/dashboard/meta` - Meta Ads (com sub-tabs)
+- `/dashboard/google` - Google Ads (com sub-tabs)
+- `/dashboard/analytics` - Google Analytics (com sub-tabs)
+- Manter rotas existentes de reports, connections, settings
+
+### 1.3 Top bar com tabs de plataforma
+
+- Na Home: exibir tabs "Meta Ads + Google Ads + Analytics" como indicador
+- Nas paginas de plataforma: sub-tabs (Visao Geral, Anuncios, Demografico, etc.)
+- Seletor de periodo no canto direito
 
 ---
 
-## Resultado Esperado
+## Fase 2: Pagina Home - Dashboard Geral (~5-6 creditos)
 
-Após as correções:
-- Os dados do Google Ads aparecerão no dashboard
-- As métricas terão valores reais (se houver dados na conta)
-- O seletor de período funcionará corretamente
+Layout em 3 colunas como na referencia:
+
+### Linha 1: KPI Cards resumidos
+- Coluna Meta: Investimento Total, Impressoes Totais
+- Coluna Google: CPC, CPM
+- Coluna Analytics: Sessoes, Novos Usuarios, Eventos Principais (com barras de progresso)
+
+### Linha 2: Cards de plataforma
+- Coluna Meta: Card "Meta Ads" com Investimento, Leads, CPL, CPM
+- Coluna Google: Card "Google Ads" com Custo, Conversoes, Custo/conv, CPC medio (com barras de comparacao e variacao %)
+- Coluna Analytics: Mini grafico de Sessoes ao longo do tempo
+
+### Linha 3: Graficos temporais
+- Coluna Meta: Grafico de barras "Visao atemporal" (Leads por dia)
+- Coluna Google: Grafico de barras "Visao atemporal" (Conversoes por dia)
+- Coluna Analytics: Grafico pizza "Origem por Acesso" + tabela de cidades
+
+**Widgets personalizaveis**: O usuario podera escolher quais metricas aparecem em cada slot via ReportEditor.
+
+---
+
+## Fase 3: Pagina Meta Ads (~8-10 creditos)
+
+### 3.1 Sub-tab "Visao Geral"
+- Linha de KPI cards no topo: Amount Spent, Total de Leads, Custo por Lead, Impressoes, CPC, CPM
+  - Cada card com variacao % e barra de comparacao (verde = positivo, vermelho = negativo)
+- Tabela "Performance por campanha" (Campaign Name, Investimento, Leads, CPL)
+  - Paginacao
+- Funil visual estilo cascata (Reach -> Impressions -> Link Clicks -> Leads) em gradiente roxo
+- Grafico de linha "Visao atemporal" (Impressions + Leads ao longo do tempo, dual axis)
+
+### 3.2 Sub-tab "Anuncios"
+- KPI cards no topo (CTR, Total de Leads, CPL, Impressoes, CPC, CPM)
+- Tabela "Performance por Criativos" com colunas: Campaign Name, **Ad Preview (imagem)**, Leads, Cost per Lead, CTR
+  - **Previews de anuncios**: Buscar creative thumbnails via Meta Marketing API (`/adcreatives?fields=thumbnail_url,image_url`)
+  - Paginacao
+
+### 3.3 Sub-tab "Demografico"
+- 4 graficos pizza em grid 2x2:
+  - Performance por Canal (Instagram, Audience Network, etc.)
+  - Performance por Posicionamento (Feed, Stories, etc.)
+  - Performance por Idade (faixas etarias)
+  - Performance por Genero
+
+### Backend (Edge Function updates)
+- Atualizar `meta-ads-insights` para retornar dados por campanha, por anuncio (com preview), por dia, e breakdowns demograficos
+- Novos endpoints ou parametros: `breakdown=campaign`, `breakdown=ad`, `breakdown=age,gender`, `breakdown=publisher_platform`
+
+---
+
+## Fase 4: Pagina Google Ads (~8-10 creditos)
+
+### 4.1 Sub-tab "Visao Geral"
+- KPI cards principais: Custo, Conversoes, Taxa conv., CPC medio, CTR (com variacao e barras)
+- KPI cards secundarios menores: Custo medio, Cliques, Cliques invalidos, Taxa engajamento, etc.
+- Filtros laterais: Status campanha, Tipo canal, Regiao, Cidade
+- Tabela "Visao Geral" (Campanha, Custo)
+- Tabela "Criativos" (Keyword Text, Custo, Impressoes)
+- Funil de metricas (Impressoes -> CPC -> CTR -> Custo -> Cliques)
+- Grafico pizza "Dimensoes %"
+- Grafico temporal "Visao temporal" (Custo ao longo do tempo)
+
+### 4.2 Sub-tab "Anuncios"
+- KPI cards expandidos (Custo, Conversoes, Impressoes, Taxa conv., CPC, CTR, Cliques, Custo medio, etc.)
+- Tabela Campanhas (Campanha, Custo, Conversoes)
+- Tabela Conjuntos de Anuncios (Dia da semana, Custo, Conversoes)
+- Tabela Criativos/Keywords (Keyword Text, Custo, Cliques, Conversoes, Taxa conv., CPC, CPM)
+  - Sem preview de imagem, apenas texto (titulo/descricao)
+
+### 4.3 Sub-tab "Historico"
+- KPI cards com dados do periodo completo
+- Tabela Historico detalhado por mes (Mes, Custo, Conversoes)
+- Tabelas: Campanhas, Conjuntos de anuncios, Criativos
+- Grafico temporal longo prazo
+
+### Backend (Edge Function updates)
+- Atualizar `google-ads-insights` para suportar queries por campanha, por keyword/ad group, por dia da semana, e historico mensal
+- Novos parametros: `breakdown=campaign`, `breakdown=ad_group`, `breakdown=keyword`, `breakdown=monthly`
+
+---
+
+## Fase 5: Integracao Google Analytics (~10-12 creditos)
+
+### 5.1 Nova integracao OAuth
+- Criar Edge Functions: `google-analytics-oauth-start`, `google-analytics-oauth-callback`
+- Adicionar campos na tabela `clients`: `ga_property_id`, `ga_access_token`, `ga_refresh_token`, `ga_connected_at`, `ga_token_expires_at`
+- Usar GA4 Data API (Google Analytics Data API v1)
+- Adicionar card de conexao na pagina de Conexoes
+
+### 5.2 Edge Function `google-analytics-insights`
+- Buscar metricas: Sessoes, Novos Usuarios, Eventos, Taxa Engajamento, Receita, Duracao Sessao, Sessoes por Usuario, Eventos por Sessao, Sessoes Engajadas
+- Breakdowns: por pagina, por cidade, por origem/midia, por dispositivo, por genero
+- Dados temporais por dia
+
+### 5.3 Pagina Analytics
+- Sub-tab "Visao Geral": KPI cards, tabela de paginas, tabela de cidades, funil (Sessoes -> Views -> Cart -> Checkout -> Compras), grafico pizza dimensoes, grafico temporal
+- Sub-tab "Origens de Acesso": Tabela por origem/midia
+- Sub-tab "Historico": Dados mensais
+- Sub-tab "Visao Tecnica": Dispositivos, navegadores
+
+---
+
+## Fase 6: Sistema de Widgets Personalizaveis (~4-5 creditos)
+
+### 6.1 Template de layout
+- Cada pagina (Home, Meta, Google, Analytics) tera slots de widgets pre-definidos pelo template
+- O usuario "encaixa" metricas nos slots via ReportEditor atualizado
+- Tipos de widget: `kpi_card`, `table`, `chart_line`, `chart_bar`, `chart_pie`, `funnel`
+
+### 6.2 Atualizar ReportEditor
+- Adicionar opcao de plataforma "analytics"
+- Adicionar tipo de visualizacao (card, tabela, grafico, funil)
+- Permitir configurar quais metricas aparecem em cada secao
+
+### 6.3 Atualizar tabela report_widgets
+- Adicionar campo `section` (ex: "kpi_top", "table_campaigns", "chart_temporal", "funnel")
+- Adicionar suporte a plataforma "analytics"
+
+---
+
+## Componentes Reutilizaveis a Criar
+
+| Componente | Descricao |
+|---|---|
+| `KpiCard` | Card de metrica com valor, variacao %, barra de comparacao |
+| `ComparisonBar` | Barra verde/vermelha de comparacao com periodo anterior |
+| `DataTable` | Tabela paginada generica com ordenacao |
+| `TimeSeriesChart` | Grafico de linha/barra temporal (recharts) |
+| `PieChartWidget` | Grafico pizza com legenda |
+| `FunnelChart` | Funil visual estilo cascata (gradiente roxo/verde) |
+| `PlatformSidebar` | Sidebar compacta com icones de plataforma |
+| `PlatformHeader` | Header com logo da plataforma + sub-tabs |
+| `AdPreviewCard` | Card de preview de anuncio (Meta: imagem, Google: texto) |
+
+---
+
+## Estimativa de Creditos
+
+| Fase | Descricao | Creditos Estimados |
+|---|---|---|
+| Fase 1 | Layout e Navegacao | 8-10 |
+| Fase 2 | Home Dashboard | 5-6 |
+| Fase 3 | Meta Ads (3 sub-tabs + backend) | 8-10 |
+| Fase 4 | Google Ads (3 sub-tabs + backend) | 8-10 |
+| Fase 5 | Google Analytics (integracao completa) | 10-12 |
+| Fase 6 | Widgets Personalizaveis | 4-5 |
+| **Total** | | **43-53 creditos** |
+
+**Nota**: Cada "credito" equivale a aproximadamente 1 mensagem de implementacao no Lovable. A estimativa pode variar dependendo de ajustes e debugging necessarios.
+
+---
+
+## Ordem de Implementacao Recomendada
+
+1. **Fase 1** - Layout/Navegacao (base para tudo)
+2. **Fase 2** - Home (impacto visual imediato)
+3. **Fase 3** - Meta Ads (ja tem integracao pronta)
+4. **Fase 4** - Google Ads (ja tem integracao pronta)
+5. **Fase 5** - Google Analytics (nova integracao)
+6. **Fase 6** - Personalizacao de widgets (refinamento)
+
+---
+
+## Detalhes Tecnicos
+
+### Edge Functions a criar/modificar:
+- `meta-ads-insights` - adicionar breakdowns (campanha, anuncio com preview, demografico, temporal)
+- `google-ads-insights` - adicionar breakdowns (campanha, keyword, ad group, temporal, mensal)
+- `google-analytics-oauth-start` - novo
+- `google-analytics-oauth-callback` - novo
+- `google-analytics-insights` - novo
+
+### Migracoes de banco necessarias:
+- Adicionar campos GA na tabela `clients` (ga_property_id, ga_access_token, etc.)
+- Adicionar campo `section` na tabela `report_widgets`
+- Adicionar valor "analytics" como plataforma valida em `report_widgets`
+
+### Bibliotecas existentes que serao usadas:
+- `recharts` - graficos (ja instalado)
+- `@radix-ui/react-tabs` - sub-tabs (ja instalado)
+- Nenhuma dependencia nova necessaria
 
