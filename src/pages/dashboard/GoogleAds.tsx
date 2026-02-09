@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +15,7 @@ import {
   ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Target, TrendingUp, Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useDashboardFilters, manualFetchOptions } from '@/hooks/useDashboardFilters';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
@@ -82,7 +83,7 @@ export default function GoogleAds() {
   const { clientId } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
-  const [datePreset, setDatePreset] = useState('last_7d');
+  const { datePreset, setDatePreset, customDateRange, setCustomDateRange, isRefreshing, handleRefresh } = useDashboardFilters(['google-insights', 'google-campaigns', 'google-keywords', 'google-daily', 'google-adgroups', 'google-dow', 'google-monthly']);
   const [campaignPage, setCampaignPage] = useState(0);
   const [keywordPage, setKeywordPage] = useState(0);
   const pageSize = 10;
@@ -108,6 +109,7 @@ export default function GoogleAds() {
       return data?.metrics || null;
     },
     enabled: !!clientId && isConnected,
+    ...manualFetchOptions,
   });
 
   const { data: campaignData, isLoading: campaignsLoading } = useQuery({
@@ -198,7 +200,7 @@ export default function GoogleAds() {
   if (!isConnected) {
     return (
       <DashboardLayout>
-        <PlatformHeader platform="google" activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} datePreset={datePreset} onDatePresetChange={setDatePreset} />
+        <PlatformHeader platform="google" activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} datePreset={datePreset} onDatePresetChange={setDatePreset} onRefresh={handleRefresh} isRefreshing={isRefreshing} customDateRange={customDateRange} onCustomDateRangeChange={setCustomDateRange} />
         <Card className="border-warning/50 bg-warning/5">
           <CardContent className="flex flex-col items-center gap-4 py-12">
             <AlertCircle className="h-12 w-12 text-warning" />
@@ -213,7 +215,7 @@ export default function GoogleAds() {
 
   return (
     <DashboardLayout>
-      <PlatformHeader platform="google" activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} datePreset={datePreset} onDatePresetChange={setDatePreset} />
+      <PlatformHeader platform="google" activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} datePreset={datePreset} onDatePresetChange={setDatePreset} onRefresh={handleRefresh} isRefreshing={isRefreshing} customDateRange={customDateRange} onCustomDateRangeChange={setCustomDateRange} />
 
       {/* === VISÃO GERAL === */}
       {activeTab === 'overview' && (
