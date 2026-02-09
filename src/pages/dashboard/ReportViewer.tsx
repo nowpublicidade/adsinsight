@@ -62,6 +62,16 @@ const metricIcons: Record<string, React.ReactNode> = {
   averagePosition: <BarChart3 className="h-4 w-4" />,
   videoViews: <Eye className="h-4 w-4" />,
   videoViewRate: <BarChart3 className="h-4 w-4" />,
+  // Analytics
+  sessions: <BarChart3 className="h-4 w-4" />,
+  newUsers: <Users className="h-4 w-4" />,
+  totalUsers: <Users className="h-4 w-4" />,
+  engagementRate: <TrendingUp className="h-4 w-4" />,
+  eventCount: <Target className="h-4 w-4" />,
+  averageSessionDuration: <BarChart3 className="h-4 w-4" />,
+  sessionsPerUser: <Users className="h-4 w-4" />,
+  engagedSessions: <TrendingUp className="h-4 w-4" />,
+  screenPageViews: <Eye className="h-4 w-4" />,
 };
 
 // Formatação de valores
@@ -69,17 +79,26 @@ const formatValue = (key: string, value: number | undefined): string => {
   if (value === undefined || value === null) return '-';
   
   const currencyMetrics = ['spend', 'cost', 'cpc', 'cpm', 'costPerLead', 'costPerPurchase', 'costPerAddToCart', 'purchaseValue', 'conversionValue', 'costPerConversion'];
-  const percentMetrics = ['ctr', 'conversionRate', 'videoViewRate', 'searchImpressionShare'];
-  const roasMetrics = ['roas'];
+  const percentMetrics = ['ctr', 'conversionRate', 'videoViewRate', 'searchImpressionShare', 'engagementRate'];
+  const durationMetrics = ['averageSessionDuration'];
   
   if (currencyMetrics.includes(key)) {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   }
   
   if (percentMetrics.includes(key)) {
-    return `${value.toFixed(2)}%`;
+    // engagementRate from GA is 0-1, others are already %
+    const pct = key === 'engagementRate' ? value * 100 : value;
+    return `${pct.toFixed(2)}%`;
+  }
+
+  if (durationMetrics.includes(key)) {
+    const m = Math.floor(value / 60);
+    const s = Math.round(value % 60);
+    return `${m}m ${s}s`;
   }
   
+  const roasMetrics = ['roas'];
   if (roasMetrics.includes(key)) {
     return `${value.toFixed(2)}x`;
   }
@@ -99,7 +118,7 @@ interface MetricCardProps {
   title: string;
   value: string;
   icon: React.ReactNode;
-  platform: 'meta' | 'google';
+  platform: 'meta' | 'google' | 'analytics';
   isLoading?: boolean;
 }
 
@@ -116,10 +135,11 @@ function MetricCard({ title, value, icon, platform, isLoading }: MetricCardProps
             className={cn(
               "text-xs",
               platform === 'meta' && 'badge-meta',
-              platform === 'google' && 'badge-google'
+              platform === 'google' && 'badge-google',
+              platform === 'analytics' && 'badge-analytics'
             )}
           >
-            {platform === 'meta' ? 'Meta' : 'Google'}
+            {platform === 'meta' ? 'Meta' : platform === 'google' ? 'Google' : 'Analytics'}
           </Badge>
           <div className="text-muted-foreground">{icon}</div>
         </div>
@@ -241,9 +261,36 @@ export default function ReportViewer() {
     enabled: !!clientId && !!client?.google_connected_at,
   });
 
+  // Fetch Google Analytics data
+  const { data: analyticsData, isLoading: analyticsLoading, refetch: refetchAnalytics } = useQuery({
+    queryKey: ['analytics-insights', clientId, datePreset],
+    queryFn: async () => {
+      if (!clientId) return null;
+      const dateMap: Record<string, { from: string; to: string }> = {
+        today: { from: 'today', to: 'today' },
+        yesterday: { from: 'yesterday', to: 'yesterday' },
+        last_7d: { from: '7daysAgo', to: 'today' },
+        last_14d: { from: '14daysAgo', to: 'today' },
+        last_30d: { from: '30daysAgo', to: 'today' },
+        this_month: { from: '30daysAgo', to: 'today' },
+        last_month: { from: '60daysAgo', to: '30daysAgo' },
+      };
+      const { from, to } = dateMap[datePreset] || dateMap.last_7d;
+
+      const { data, error } = await supabase.functions.invoke('google-analytics-insights', {
+        body: { client_id: clientId, date_from: from, date_to: to },
+      });
+      if (error) throw error;
+      if (data?.error) { console.warn('GA API error:', data.error); return null; }
+      return data?.metrics || null;
+    },
+    enabled: !!clientId && !!(client as any)?.ga_connected_at,
+  });
+
   const handleRefresh = () => {
     if (client?.meta_connected_at) refetchMeta();
     if (client?.google_connected_at) refetchGoogle();
+    if ((client as any)?.ga_connected_at) refetchAnalytics();
     toast.success('Dados atualizados');
   };
 
@@ -278,10 +325,12 @@ export default function ReportViewer() {
 
   const metaWidgets = widgets?.filter(w => w.platform === 'meta') || [];
   const googleWidgets = widgets?.filter(w => w.platform === 'google') || [];
+  const analyticsWidgets = widgets?.filter(w => w.platform === 'analytics') || [];
 
-  const hasNoWidgets = (!metaWidgets.length && !googleWidgets.length);
+  const hasNoWidgets = (!metaWidgets.length && !googleWidgets.length && !analyticsWidgets.length);
   const isMetaConnected = !!client?.meta_connected_at;
   const isGoogleConnected = !!client?.google_connected_at;
+  const isAnalyticsConnected = !!(client as any)?.ga_connected_at;
 
   return (
     <DashboardLayout>
@@ -427,6 +476,49 @@ export default function ReportViewer() {
                     icon={metricIcons[widget.metric_key] || <BarChart3 className="h-4 w-4" />}
                     platform="google"
                     isLoading={googleLoading}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Google Analytics Section */}
+        {analyticsWidgets.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <h2 className="text-xl font-semibold">Google Analytics</h2>
+              {!isAnalyticsConnected && (
+                <Badge variant="outline" className="text-warning border-warning">
+                  Não conectado
+                </Badge>
+              )}
+            </div>
+            
+            {!isAnalyticsConnected ? (
+              <Card className="border-warning/50 bg-warning/5">
+                <CardContent className="flex items-center gap-4 py-4">
+                  <AlertCircle className="h-5 w-5 text-warning flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground">
+                      Conecte sua conta do Google Analytics para visualizar estas métricas.
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => navigate('/dashboard/connections')}>
+                    Conectar
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {analyticsWidgets.map((widget) => (
+                  <MetricCard
+                    key={widget.id}
+                    title={widget.display_name}
+                    value={formatValue(widget.metric_key, analyticsData?.[widget.metric_key])}
+                    icon={metricIcons[widget.metric_key] || <BarChart3 className="h-4 w-4" />}
+                    platform="analytics"
+                    isLoading={analyticsLoading}
                   />
                 ))}
               </div>
