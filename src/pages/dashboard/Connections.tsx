@@ -46,11 +46,13 @@ export default function Connections() {
   const queryClient = useQueryClient();
   const [connectingMeta, setConnectingMeta] = useState(false);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
+  const [connectingAnalytics, setConnectingAnalytics] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>(clientId || "");
 
   // Account ID states
   const [metaAdAccountId, setMetaAdAccountId] = useState("");
   const [googleCustomerId, setGoogleCustomerId] = useState("");
+  const [gaPropertyId, setGaPropertyId] = useState("");
 
   // Fetch all clients for admin
   const { data: clients } = useQuery({
@@ -83,15 +85,20 @@ export default function Connections() {
     if (client) {
       setMetaAdAccountId(client.meta_ad_account_id || "");
       setGoogleCustomerId(client.google_customer_id || "");
+      setGaPropertyId((client as any).ga_property_id || "");
     }
   }, [client]);
 
   const updateAccountIdMutation = useMutation({
-    mutationFn: async ({ platform, accountId }: { platform: "meta" | "google"; accountId: string }) => {
+    mutationFn: async ({ platform, accountId }: { platform: "meta" | "google" | "analytics"; accountId: string }) => {
       if (!effectiveClientId) throw new Error("No client ID");
 
       const updates =
-        platform === "meta" ? { meta_ad_account_id: accountId || null } : { google_customer_id: accountId || null };
+        platform === "meta"
+          ? { meta_ad_account_id: accountId || null }
+          : platform === "google"
+          ? { google_customer_id: accountId || null }
+          : { ga_property_id: accountId || null };
 
       const { error } = await supabase.from("clients").update(updates).eq("id", effectiveClientId);
 
@@ -107,7 +114,7 @@ export default function Connections() {
   });
 
   const disconnectMutation = useMutation({
-    mutationFn: async (platform: "meta" | "google") => {
+    mutationFn: async (platform: "meta" | "google" | "analytics") => {
       if (!effectiveClientId) throw new Error("No client ID");
 
       const updates =
@@ -118,11 +125,18 @@ export default function Connections() {
               meta_user_id: null,
               meta_connected_at: null,
             }
-          : {
+          : platform === "google"
+          ? {
               google_access_token: null,
               google_refresh_token: null,
               google_token_expires_at: null,
               google_connected_at: null,
+            }
+          : {
+              ga_access_token: null,
+              ga_refresh_token: null,
+              ga_token_expires_at: null,
+              ga_connected_at: null,
             };
 
       const { error } = await supabase.from("clients").update(updates).eq("id", effectiveClientId);
@@ -131,7 +145,8 @@ export default function Connections() {
     },
     onSuccess: (_, platform) => {
       queryClient.invalidateQueries({ queryKey: ["client", effectiveClientId] });
-      toast.success(`${platform === "meta" ? "Meta Ads" : "Google Ads"} desconectado`);
+      const names = { meta: "Meta Ads", google: "Google Ads", analytics: "Google Analytics" };
+      toast.success(`${names[platform]} desconectado`);
     },
     onError: (error) => {
       toast.error("Erro ao desconectar: " + error.message);
@@ -212,8 +227,42 @@ export default function Connections() {
     }
   };
 
+  const handleConnectAnalytics = async () => {
+    if (!effectiveClientId) {
+      toast.error("Selecione um cliente para conectar");
+      return;
+    }
+
+    if (!gaPropertyId.trim()) {
+      toast.error("Insira o Property ID do Google Analytics antes de conectar");
+      return;
+    }
+
+    await updateAccountIdMutation.mutateAsync({ platform: "analytics", accountId: gaPropertyId });
+
+    setConnectingAnalytics(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("google-analytics-oauth-start", {
+        body: { client_id: effectiveClientId },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      if (data?.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        throw new Error("URL de autorização não recebida");
+      }
+    } catch (error: any) {
+      toast.error("Erro ao iniciar conexão: " + error.message);
+      setConnectingAnalytics(false);
+    }
+  };
+
   const isMetaConnected = !!client?.meta_connected_at;
   const isGoogleConnected = !!client?.google_connected_at;
+  const isAnalyticsConnected = !!(client as any)?.ga_connected_at;
   const hasNoClient = !effectiveClientId;
 
   if (isLoading && effectiveClientId) {
@@ -284,7 +333,7 @@ export default function Connections() {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Meta Ads Card */}
           <Card>
             <CardHeader>
@@ -523,6 +572,129 @@ export default function Connections() {
                     {(!googleCustomerId.trim() || hasNoClient) && (
                       <TooltipContent>
                         <p>{hasNoClient ? "Selecione um cliente primeiro" : "Preencha o Customer ID primeiro"}</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Google Analytics Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-xl bg-[hsl(38,92%,50%)]/10 flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
+                      <path fill="#F9AB00" d="M12.87 20.07V3.93c0-1.07-.87-1.93-1.93-1.93S9 2.87 9 3.93v16.13c0 1.07.87 1.93 1.93 1.93s1.94-.86 1.94-1.92z"/>
+                      <path fill="#E37400" d="M19.87 20.07V9.93c0-1.07-.87-1.93-1.93-1.93S16 8.87 16 9.93v10.13c0 1.07.87 1.93 1.93 1.93s1.94-.86 1.94-1.92z"/>
+                      <circle fill="#E37400" cx="4.07" cy="20.07" r="1.93"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <CardTitle>Google Analytics</CardTitle>
+                    <CardDescription>GA4 - Dados de tráfego</CardDescription>
+                  </div>
+                </div>
+                {effectiveClientId &&
+                  (isAnalyticsConnected ? (
+                    <Badge className="connection-connected">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Conectado
+                    </Badge>
+                  ) : (
+                    <Badge className="connection-disconnected">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Desconectado
+                    </Badge>
+                  ))}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="ga-property-id">Property ID (GA4)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="ga-property-id"
+                    value={gaPropertyId}
+                    onChange={(e) => setGaPropertyId(e.target.value)}
+                    placeholder="Ex: 123456789"
+                    disabled={hasNoClient}
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => updateAccountIdMutation.mutate({ platform: "analytics", accountId: gaPropertyId })}
+                    disabled={hasNoClient || updateAccountIdMutation.isPending}
+                  >
+                    {updateAccountIdMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Encontre o Property ID em Admin → Property Settings no GA4 (apenas números)
+                </p>
+              </div>
+
+              {isAnalyticsConnected ? (
+                <>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p>
+                      Conectado em:{" "}
+                      {(client as any)?.ga_connected_at
+                        ? new Date((client as any).ga_connected_at).toLocaleDateString("pt-BR")
+                        : "N/A"}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => disconnectMutation.mutate("analytics")}
+                      disabled={disconnectMutation.isPending}
+                    >
+                      <Unlink className="h-4 w-4 mr-2" />
+                      Desconectar
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Conecte sua conta do Google Analytics para importar dados de tráfego, sessões e comportamento de usuários.
+                  </p>
+
+                  {!gaPropertyId.trim() && !hasNoClient && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30">
+                      <Info className="h-4 w-4 text-warning flex-shrink-0" />
+                      <p className="text-sm text-warning">Preencha o Property ID acima antes de conectar</p>
+                    </div>
+                  )}
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="w-full">
+                        <Button
+                          className="w-full btn-glow"
+                          onClick={handleConnectAnalytics}
+                          disabled={connectingAnalytics || hasNoClient || !gaPropertyId.trim()}
+                        >
+                          {connectingAnalytics ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                          )}
+                          Conectar Analytics
+                        </Button>
+                      </div>
+                    </TooltipTrigger>
+                    {(!gaPropertyId.trim() || hasNoClient) && (
+                      <TooltipContent>
+                        <p>{hasNoClient ? "Selecione um cliente primeiro" : "Preencha o Property ID primeiro"}</p>
                       </TooltipContent>
                     )}
                   </Tooltip>

@@ -18,6 +18,11 @@ export type Database = {
         Row: {
           created_at: string
           email: string | null
+          ga_access_token: string | null
+          ga_connected_at: string | null
+          ga_property_id: string | null
+          ga_refresh_token: string | null
+          ga_token_expires_at: string | null
           google_access_token: string | null
           google_connected_at: string | null
           google_customer_id: string | null
@@ -38,6 +43,11 @@ export type Database = {
         Insert: {
           created_at?: string
           email?: string | null
+          ga_access_token?: string | null
+          ga_connected_at?: string | null
+          ga_property_id?: string | null
+          ga_refresh_token?: string | null
+          ga_token_expires_at?: string | null
           google_access_token?: string | null
           google_connected_at?: string | null
           google_customer_id?: string | null
@@ -58,6 +68,11 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string | null
+          ga_access_token?: string | null
+          ga_connected_at?: string | null
+          ga_property_id?: string | null
+          ga_refresh_token?: string | null
+          ga_token_expires_at?: string | null
           google_access_token?: string | null
           google_connected_at?: string | null
           google_customer_id?: string | null
