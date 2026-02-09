@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { client_id, date_preset, date_range } = await req.json();
+    const { client_id, date_preset, date_range, breakdown } = await req.json();
 
     if (!client_id) {
       return new Response(
@@ -30,7 +30,6 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get client data with tokens
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select('meta_access_token, meta_ad_account_id, meta_token_expires_at')
@@ -48,7 +47,6 @@ serve(async (req) => {
       );
     }
 
-    // Check if token is expired
     if (client.meta_token_expires_at && new Date(client.meta_token_expires_at) < new Date()) {
       return new Response(
         JSON.stringify({ error: 'Meta token expired', code: 'TOKEN_EXPIRED' }),
@@ -56,7 +54,6 @@ serve(async (req) => {
       );
     }
 
-    // Build date parameters
     let dateParams = '';
     if (date_preset) {
       dateParams = `&date_preset=${date_preset}`;
@@ -66,40 +63,15 @@ serve(async (req) => {
       dateParams = '&date_preset=last_7d';
     }
 
-    // Fields to fetch including Pixel/conversion metrics
-    const fields = [
-      'spend',
-      'impressions',
-      'reach',
-      'clicks',
-      'cpc',
-      'cpm',
-      'ctr',
-      'frequency',
-      'actions',
-      'action_values',
-      'cost_per_action_type',
-      'conversions',
-      'conversion_values',
-      'cost_per_conversion',
+    const baseFields = [
+      'spend', 'impressions', 'reach', 'clicks', 'cpc', 'cpm', 'ctr', 'frequency',
+      'actions', 'action_values', 'cost_per_action_type', 'conversions', 'conversion_values', 'cost_per_conversion',
     ].join(',');
 
-    // Fetch insights from Meta Ads API
-    console.log('Fetching insights for ad account:', client.meta_ad_account_id);
-    const insightsUrl = `https://graph.facebook.com/v24.0/${client.meta_ad_account_id}/insights?fields=${fields}${dateParams}&access_token=${client.meta_access_token}`;
-    
-    const insightsResponse = await fetch(insightsUrl);
-    const insightsData = await insightsResponse.json();
+    const accessToken = client.meta_access_token;
+    const adAccountId = client.meta_ad_account_id;
 
-    if (insightsData.error) {
-      console.error('Meta API error:', insightsData.error);
-      throw new Error(insightsData.error.message || 'Failed to fetch insights');
-    }
-
-    // Process the data
-    const rawData = insightsData.data?.[0] || {};
-    
-    // Helper to find action value - checks multiple action_type variations
+    // Helper functions
     const getActionValue = (actions: any[], ...actionTypes: string[]) => {
       if (!actions) return 0;
       for (const actionType of actionTypes) {
@@ -109,112 +81,188 @@ serve(async (req) => {
       return 0;
     };
 
-    // Helper to find action cost - checks multiple action_type variations
-    const getActionCost = (costs: any[], ...actionTypes: string[]) => {
-      if (!costs) return 0;
-      for (const actionType of actionTypes) {
-        const cost = costs.find((c: any) => c.action_type === actionType);
-        if (cost) return parseFloat(cost.value);
-      }
-      return 0;
+    const processMetrics = (rawData: any) => {
+      const pixelLeads = getActionValue(rawData.actions, 'lead', 'offsite_conversion.fb_pixel_lead', 'omni_lead');
+      const messageLeads = getActionValue(rawData.actions, 'onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.lead_grouped', 'onsite_web_lead');
+      const totalLeads = pixelLeads + messageLeads;
+      const spend = parseFloat(rawData.spend || 0);
+      const purchases = getActionValue(rawData.actions, 'purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase');
+      const purchaseValue = getActionValue(rawData.action_values, 'purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase');
+      const addToCart = getActionValue(rawData.actions, 'add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart', 'omni_add_to_cart');
+      const initiateCheckout = getActionValue(rawData.actions, 'initiate_checkout', 'offsite_conversion.fb_pixel_initiate_checkout', 'omni_initiated_checkout');
+      const viewContent = getActionValue(rawData.actions, 'view_content', 'offsite_conversion.fb_pixel_view_content', 'omni_view_content');
+      const completeRegistration = getActionValue(rawData.actions, 'complete_registration', 'offsite_conversion.fb_pixel_complete_registration', 'omni_complete_registration');
+      const linkClicks = getActionValue(rawData.actions, 'link_click');
+
+      return {
+        spend,
+        impressions: parseInt(rawData.impressions || 0),
+        reach: parseInt(rawData.reach || 0),
+        clicks: parseInt(rawData.clicks || 0),
+        cpc: parseFloat(rawData.cpc || 0),
+        cpm: parseFloat(rawData.cpm || 0),
+        ctr: parseFloat(rawData.ctr || 0),
+        frequency: parseFloat(rawData.frequency || 0),
+        leads: totalLeads,
+        pixelLeads,
+        messageLeads,
+        costPerLead: totalLeads > 0 ? spend / totalLeads : 0,
+        costPerPixelLead: pixelLeads > 0 ? spend / pixelLeads : 0,
+        purchases,
+        purchaseValue,
+        roas: spend > 0 ? purchaseValue / spend : 0,
+        costPerPurchase: purchases > 0 ? spend / purchases : 0,
+        addToCart,
+        costPerAddToCart: addToCart > 0 ? spend / addToCart : 0,
+        initiateCheckout,
+        costPerCheckout: initiateCheckout > 0 ? spend / initiateCheckout : 0,
+        viewContent,
+        completeRegistration,
+        costPerRegistration: completeRegistration > 0 ? spend / completeRegistration : 0,
+        linkClicks,
+      };
     };
 
-    // Extract Pixel metrics - check multiple action_type variations
-    const purchases = getActionValue(rawData.actions, 
-      'purchase', 
-      'offsite_conversion.fb_pixel_purchase',
-      'omni_purchase'
-    );
-    const purchaseValue = getActionValue(rawData.action_values, 
-      'purchase',
-      'offsite_conversion.fb_pixel_purchase',
-      'omni_purchase'
-    );
-    const addToCart = getActionValue(rawData.actions, 
-      'add_to_cart',
-      'offsite_conversion.fb_pixel_add_to_cart',
-      'omni_add_to_cart'
-    );
-    const initiateCheckout = getActionValue(rawData.actions, 
-      'initiate_checkout',
-      'offsite_conversion.fb_pixel_initiate_checkout',
-      'omni_initiated_checkout'
-    );
-    const viewContent = getActionValue(rawData.actions, 
-      'view_content',
-      'offsite_conversion.fb_pixel_view_content',
-      'omni_view_content'
-    );
-    const completeRegistration = getActionValue(rawData.actions, 
-      'complete_registration',
-      'offsite_conversion.fb_pixel_complete_registration',
-      'omni_complete_registration'
-    );
-    
-    // Leads - check all possible lead action types
-    const pixelLeads = getActionValue(rawData.actions, 
-      'lead',
-      'offsite_conversion.fb_pixel_lead',
-      'omni_lead'
-    );
-    const messageLeads = getActionValue(rawData.actions, 
-      'onsite_conversion.messaging_conversation_started_7d',
-      'onsite_conversion.lead_grouped',
-      'onsite_web_lead'
-    );
-    
-    // Total leads = pixel leads + message leads
-    const totalLeads = pixelLeads + messageLeads;
-    
-    const spend = parseFloat(rawData.spend || 0);
-    
-    // Calculate derived metrics
-    const roas = spend > 0 ? purchaseValue / spend : 0;
-    const costPerPurchase = purchases > 0 ? spend / purchases : 0;
-    const costPerAddToCart = addToCart > 0 ? spend / addToCart : 0;
-    const costPerCheckout = initiateCheckout > 0 ? spend / initiateCheckout : 0;
-    const costPerRegistration = completeRegistration > 0 ? spend / completeRegistration : 0;
-    const costPerLead = totalLeads > 0 ? spend / totalLeads : 0;
-    const costPerPixelLead = pixelLeads > 0 ? spend / pixelLeads : 0;
+    // === BREAKDOWN: campaign ===
+    if (breakdown === 'campaign') {
+      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=campaign_name,campaign_id,${baseFields}${dateParams}&level=campaign&limit=50&access_token=${accessToken}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
 
-    const metrics = {
-      // General metrics
-      spend,
-      impressions: parseInt(rawData.impressions || 0),
-      reach: parseInt(rawData.reach || 0),
-      clicks: parseInt(rawData.clicks || 0),
-      cpc: parseFloat(rawData.cpc || 0),
-      cpm: parseFloat(rawData.cpm || 0),
-      ctr: parseFloat(rawData.ctr || 0),
-      frequency: parseFloat(rawData.frequency || 0),
-      
-      // Lead metrics
-      leads: totalLeads,
-      pixelLeads,          // Leads specifically from Pixel
-      messageLeads,
-      costPerLead,
-      costPerPixelLead,
-      
-      // Pixel/Conversion metrics
-      purchases,
-      purchaseValue,
-      roas,
-      costPerPurchase,
-      addToCart,
-      costPerAddToCart,
-      initiateCheckout,
-      costPerCheckout,
-      viewContent,
-      completeRegistration,
-      costPerRegistration,
-    };
+      const campaigns = (data.data || []).map((row: any) => ({
+        campaign_name: row.campaign_name,
+        campaign_id: row.campaign_id,
+        ...processMetrics(row),
+      }));
 
-    console.log('Successfully fetched Meta Ads insights:', JSON.stringify({
-      pixelLeads,
-      messageLeads,
-      totalLeads,
-      rawActions: rawData.actions?.map((a: any) => a.action_type)
-    }));
+      return new Response(
+        JSON.stringify({ campaigns }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // === BREAKDOWN: ad (with creative previews) ===
+    if (breakdown === 'ad') {
+      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=ad_name,ad_id,campaign_name,${baseFields}${dateParams}&level=ad&limit=50&access_token=${accessToken}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+
+      // Fetch ad creative thumbnails for each ad
+      const ads = await Promise.all((data.data || []).map(async (row: any) => {
+        let thumbnail_url = null;
+        try {
+          const adDetailUrl = `https://graph.facebook.com/v24.0/${row.ad_id}?fields=creative{thumbnail_url,image_url}&access_token=${accessToken}`;
+          const adDetailRes = await fetch(adDetailUrl);
+          const adDetail = await adDetailRes.json();
+          thumbnail_url = adDetail?.creative?.image_url || adDetail?.creative?.thumbnail_url || null;
+        } catch (e) {
+          console.warn('Could not fetch creative for ad:', row.ad_id);
+        }
+
+        return {
+          ad_name: row.ad_name,
+          ad_id: row.ad_id,
+          campaign_name: row.campaign_name,
+          thumbnail_url,
+          ...processMetrics(row),
+        };
+      }));
+
+      return new Response(
+        JSON.stringify({ ads }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // === BREAKDOWN: daily ===
+    if (breakdown === 'daily') {
+      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&time_increment=1&limit=90&access_token=${accessToken}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+
+      const daily = (data.data || []).map((row: any) => ({
+        date_start: row.date_start,
+        date_stop: row.date_stop,
+        ...processMetrics(row),
+      }));
+
+      return new Response(
+        JSON.stringify({ daily }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // === BREAKDOWN: demographics (age, gender) ===
+    if (breakdown === 'age_gender') {
+      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&breakdowns=age,gender&limit=100&access_token=${accessToken}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+
+      const demographics = (data.data || []).map((row: any) => ({
+        age: row.age,
+        gender: row.gender,
+        ...processMetrics(row),
+      }));
+
+      return new Response(
+        JSON.stringify({ demographics }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // === BREAKDOWN: publisher_platform ===
+    if (breakdown === 'publisher_platform') {
+      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&breakdowns=publisher_platform&limit=20&access_token=${accessToken}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+
+      const platforms = (data.data || []).map((row: any) => ({
+        publisher_platform: row.publisher_platform,
+        ...processMetrics(row),
+      }));
+
+      return new Response(
+        JSON.stringify({ platforms }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // === BREAKDOWN: platform_position ===
+    if (breakdown === 'platform_position') {
+      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&breakdowns=publisher_platform,platform_position&limit=50&access_token=${accessToken}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+
+      const positions = (data.data || []).map((row: any) => ({
+        publisher_platform: row.publisher_platform,
+        platform_position: row.platform_position,
+        ...processMetrics(row),
+      }));
+
+      return new Response(
+        JSON.stringify({ positions }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // === DEFAULT: aggregate metrics ===
+    const insightsUrl = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&access_token=${accessToken}`;
+    const insightsResponse = await fetch(insightsUrl);
+    const insightsData = await insightsResponse.json();
+
+    if (insightsData.error) {
+      console.error('Meta API error:', insightsData.error);
+      throw new Error(insightsData.error.message || 'Failed to fetch insights');
+    }
+
+    const rawData = insightsData.data?.[0] || {};
+    const metrics = processMetrics(rawData);
 
     return new Response(
       JSON.stringify({ metrics, raw: rawData }),
