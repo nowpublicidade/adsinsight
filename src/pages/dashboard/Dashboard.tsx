@@ -4,253 +4,191 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import PlatformHeader from '@/components/layout/PlatformHeader';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Loader2,
   AlertCircle,
-  FileText,
-  Plus,
-  Eye,
-  Settings,
-  BarChart3,
-  RefreshCw,
   DollarSign,
   Users,
   MousePointer,
   Target,
-  ShoppingCart,
   TrendingUp,
+  Eye,
+  BarChart3,
+  Activity,
+  Facebook,
   ArrowUpRight,
   ArrowDownRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
-
-// Metric icons mapping
-const metricIcons: Record<string, React.ReactNode> = {
-  spend: <DollarSign className="h-4 w-4" />,
-  impressions: <Eye className="h-4 w-4" />,
-  reach: <Users className="h-4 w-4" />,
-  clicks: <MousePointer className="h-4 w-4" />,
-  cpc: <DollarSign className="h-4 w-4" />,
-  cpm: <DollarSign className="h-4 w-4" />,
-  ctr: <BarChart3 className="h-4 w-4" />,
-  leads: <Users className="h-4 w-4" />,
-  pixelLeads: <Users className="h-4 w-4" />,
-  costPerLead: <Target className="h-4 w-4" />,
-  purchases: <ShoppingCart className="h-4 w-4" />,
-  purchaseValue: <DollarSign className="h-4 w-4" />,
-  roas: <TrendingUp className="h-4 w-4" />,
-  addToCart: <ShoppingCart className="h-4 w-4" />,
-  cost: <DollarSign className="h-4 w-4" />,
-  conversions: <Target className="h-4 w-4" />,
-  costPerConversion: <Target className="h-4 w-4" />,
-  conversionRate: <BarChart3 className="h-4 w-4" />,
-};
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts';
 
 // Format metric values
 const formatValue = (key: string, value: number | undefined): string => {
-  if (value === undefined || value === null) return '-';
-  
-  const currencyMetrics = ['spend', 'cost', 'cpc', 'cpm', 'costPerLead', 'costPerPurchase', 'purchaseValue', 'conversionValue', 'costPerConversion', 'costPerPixelLead', 'average_cpc', 'average_cpm', 'cost_per_conversion'];
-  const percentMetrics = ['ctr', 'conversionRate', 'videoViewRate'];
-  const roasMetrics = ['roas'];
-  
-  if (currencyMetrics.includes(key)) {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  }
-  
-  if (percentMetrics.includes(key)) {
-    return `${value.toFixed(2)}%`;
-  }
-  
-  if (roasMetrics.includes(key)) {
-    return `${value.toFixed(2)}x`;
-  }
-  
-  if (value >= 1000000) {
-    return `${(value / 1000000).toFixed(1)}M`;
-  }
-  
-  if (value >= 1000) {
-    return `${(value / 1000).toFixed(1)}K`;
-  }
-  
+  if (value === undefined || value === null) return '—';
+  const currencyMetrics = ['spend', 'cost', 'cpc', 'cpm', 'costPerLead', 'costPerPurchase', 'purchaseValue', 'costPerConversion', 'average_cpc', 'average_cpm', 'cost_per_conversion'];
+  const percentMetrics = ['ctr', 'conversionRate', 'engagementRate'];
+  if (currencyMetrics.includes(key)) return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  if (percentMetrics.includes(key)) return `${value.toFixed(2)}%`;
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
   return value.toLocaleString('pt-BR');
 };
 
-interface MetricCardProps {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-  platform?: 'meta' | 'google';
-  isLoading?: boolean;
-}
-
-function MetricCard({ title, value, icon, platform, isLoading }: MetricCardProps) {
+// KPI Card with comparison bar
+function KpiCard({ 
+  label, value, icon, variation, colorClass, isLoading 
+}: { 
+  label: string; value: string; icon: React.ReactNode; variation?: number; colorClass?: string; isLoading?: boolean;
+}) {
   return (
     <Card className="card-glow animate-fade-in">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-        <div className="flex items-center gap-2">
-          {platform && (
-            <Badge 
-              variant="outline" 
-              className={cn(
-                "text-xs",
-                platform === 'meta' && 'badge-meta',
-                platform === 'google' && 'badge-google'
-              )}
-            >
-              {platform === 'meta' ? 'Meta' : 'Google'}
-            </Badge>
-          )}
-          <div className="text-muted-foreground">{icon}</div>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
+          <div className={cn("text-muted-foreground/60", colorClass)}>{icon}</div>
         </div>
-      </CardHeader>
-      <CardContent>
         {isLoading ? (
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         ) : (
-          <div className="text-2xl font-bold">{value}</div>
+          <>
+            <div className="text-xl font-bold">{value}</div>
+            {variation !== undefined && (
+              <div className="flex items-center gap-1 mt-1">
+                {variation >= 0 ? (
+                  <ArrowUpRight className="h-3 w-3 text-success" />
+                ) : (
+                  <ArrowDownRight className="h-3 w-3 text-destructive" />
+                )}
+                <span className={cn("text-xs font-medium", variation >= 0 ? "text-success" : "text-destructive")}>
+                  {Math.abs(variation).toFixed(1)}%
+                </span>
+                <span className="text-xs text-muted-foreground">vs anterior</span>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
   );
 }
 
+// Platform summary card
+function PlatformSummaryCard({
+  platform, icon, colorClass, borderClass, metrics, isLoading, isConnected, onConnect,
+}: {
+  platform: string; icon: React.ReactNode; colorClass: string; borderClass: string;
+  metrics: { label: string; value: string; key: string }[];
+  isLoading?: boolean; isConnected: boolean; onConnect: () => void;
+}) {
+  return (
+    <Card className={cn("card-glow border-l-4", borderClass)}>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <div className={colorClass}>{icon}</div>
+          <CardTitle className="text-sm font-semibold">{platform}</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!isConnected ? (
+          <div className="text-center py-4">
+            <p className="text-xs text-muted-foreground mb-2">Não conectado</p>
+            <Button variant="outline" size="sm" onClick={onConnect}>Conectar</Button>
+          </div>
+        ) : isLoading ? (
+          <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+        ) : (
+          <div className="space-y-3">
+            {metrics.map((m) => (
+              <div key={m.key} className="flex justify-between items-center">
+                <span className="text-xs text-muted-foreground">{m.label}</span>
+                <span className="text-sm font-semibold">{m.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Mock daily data for charts
+const mockMetaDailyData = [
+  { day: 'Seg', leads: 12 }, { day: 'Ter', leads: 18 }, { day: 'Qua', leads: 15 },
+  { day: 'Qui', leads: 22 }, { day: 'Sex', leads: 20 }, { day: 'Sáb', leads: 8 }, { day: 'Dom', leads: 5 },
+];
+const mockGoogleDailyData = [
+  { day: 'Seg', conversions: 8 }, { day: 'Ter', conversions: 14 }, { day: 'Qua', conversions: 11 },
+  { day: 'Qui', conversions: 16 }, { day: 'Sex', conversions: 13 }, { day: 'Sáb', conversions: 6 }, { day: 'Dom', conversions: 3 },
+];
+const mockAnalyticsSources = [
+  { name: 'Orgânico', value: 42, color: 'hsl(188, 95%, 43%)' },
+  { name: 'Pago', value: 28, color: 'hsl(217, 91%, 60%)' },
+  { name: 'Social', value: 18, color: 'hsl(142, 76%, 36%)' },
+  { name: 'Direto', value: 12, color: 'hsl(38, 92%, 50%)' },
+];
+
 export default function Dashboard() {
   const { clientId } = useAuth();
   const navigate = useNavigate();
   const [datePreset, setDatePreset] = useState('last_7d');
-  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
 
-  // Fetch client data
   const { data: client, isLoading: clientLoading } = useQuery({
     queryKey: ['client', clientId],
     queryFn: async () => {
       if (!clientId) return null;
-      const { data, error } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('id', clientId)
-        .single();
-      
+      const { data, error } = await supabase.from('clients').select('*').eq('id', clientId).single();
       if (error) throw error;
       return data;
     },
     enabled: !!clientId,
   });
 
-  // Fetch reports
-  const { data: reports, isLoading: reportsLoading } = useQuery({
-    queryKey: ['reports', clientId],
-    queryFn: async () => {
-      if (!clientId) return [];
-      const { data, error } = await supabase
-        .from('reports')
-        .select('*')
-        .eq('client_id', clientId)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!clientId,
-  });
-
-  // Get default report or first available
-  const defaultReport = reports?.find(r => r.is_default) || reports?.[0];
-  const activeReportId = selectedReportId || defaultReport?.id;
-  const activeReport = reports?.find(r => r.id === activeReportId);
-
-  // Fetch widgets for active report
-  const { data: widgets } = useQuery({
-    queryKey: ['report-widgets', activeReportId],
-    queryFn: async () => {
-      if (!activeReportId) return [];
-      const { data, error } = await supabase
-        .from('report_widgets')
-        .select('*')
-        .eq('report_id', activeReportId)
-        .eq('is_visible', true)
-        .order('position');
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!activeReportId,
-  });
-
-  // Fetch Meta Ads data
-  const { data: metaData, isLoading: metaLoading, refetch: refetchMeta } = useQuery({
+  const { data: metaData, isLoading: metaLoading } = useQuery({
     queryKey: ['meta-insights', clientId, datePreset],
     queryFn: async () => {
       if (!clientId) return null;
-      
       const { data, error } = await supabase.functions.invoke('meta-ads-insights', {
-        body: { 
-          client_id: clientId,
-          date_preset: datePreset,
-        },
+        body: { client_id: clientId, date_preset: datePreset },
       });
-      
       if (error) throw error;
-      if (data?.error) {
-        console.warn('Meta API error:', data.error);
-        return null;
-      }
-      
       return data?.metrics || null;
     },
     enabled: !!clientId && !!client?.meta_connected_at,
   });
 
-  // Fetch Google Ads data
-  const { data: googleData, isLoading: googleLoading, refetch: refetchGoogle } = useQuery({
+  const { data: googleData, isLoading: googleLoading } = useQuery({
     queryKey: ['google-insights', clientId, datePreset],
     queryFn: async () => {
       if (!clientId) return null;
-      
       const { data, error } = await supabase.functions.invoke('google-ads-insights', {
-        body: { 
-          client_id: clientId,
-          date_preset: datePreset,
-        },
+        body: { client_id: clientId, date_preset: datePreset },
       });
-      
       if (error) throw error;
-      if (data?.error) {
-        console.warn('Google API error:', data.error);
-        return null;
-      }
-      
       return data?.metrics || null;
     },
     enabled: !!clientId && !!client?.google_connected_at,
   });
 
-  const handleRefresh = () => {
-    if (client?.meta_connected_at) refetchMeta();
-    if (client?.google_connected_at) refetchGoogle();
-    toast.success('Dados atualizados');
-  };
-
   const isMetaConnected = !!client?.meta_connected_at;
   const isGoogleConnected = !!client?.google_connected_at;
-  const hasAnyConnection = isMetaConnected || isGoogleConnected;
-  const hasReports = reports && reports.length > 0;
-  const hasWidgets = widgets && widgets.length > 0;
 
-  const metaWidgets = widgets?.filter(w => w.platform === 'meta') || [];
-  const googleWidgets = widgets?.filter(w => w.platform === 'google') || [];
-
-  if (clientLoading || reportsLoading) {
+  if (clientLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-96">
@@ -276,364 +214,225 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Dashboard</h1>
-            <p className="text-muted-foreground">
-              Visão geral das suas campanhas
-            </p>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Report selector */}
-            {hasReports && (
-              <Select 
-                value={activeReportId || ''} 
-                onValueChange={(v) => setSelectedReportId(v)}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Selecione um relatório" />
-                </SelectTrigger>
-                <SelectContent>
-                  {reports?.map((report) => (
-                    <SelectItem key={report.id} value={report.id}>
-                      {report.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+      <PlatformHeader
+        platform="home"
+        activeTab=""
+        onTabChange={() => {}}
+        tabs={[]}
+        datePreset={datePreset}
+        onDatePresetChange={setDatePreset}
+      />
 
-            {/* Date range */}
-            <Select value={datePreset} onValueChange={setDatePreset}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="today">Hoje</SelectItem>
-                <SelectItem value="yesterday">Ontem</SelectItem>
-                <SelectItem value="last_7d">Últimos 7 dias</SelectItem>
-                <SelectItem value="last_14d">Últimos 14 dias</SelectItem>
-                <SelectItem value="last_30d">Últimos 30 dias</SelectItem>
-                <SelectItem value="this_month">Este mês</SelectItem>
-                <SelectItem value="last_month">Mês passado</SelectItem>
-              </SelectContent>
-            </Select>
+      {/* 3-Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            <Button variant="outline" onClick={handleRefresh}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Atualizar
-            </Button>
+        {/* === COLUMN 1: META ADS === */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Facebook className="h-4 w-4 text-meta" />
+            <h2 className="text-sm font-semibold text-meta uppercase tracking-wide">Meta Ads</h2>
           </div>
+
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 gap-3">
+            <KpiCard
+              label="Investimento"
+              value={formatValue('spend', metaData?.spend)}
+              icon={<DollarSign className="h-4 w-4" />}
+              colorClass="text-meta"
+              isLoading={metaLoading && isMetaConnected}
+            />
+            <KpiCard
+              label="Impressões"
+              value={formatValue('impressions', metaData?.impressions)}
+              icon={<Eye className="h-4 w-4" />}
+              colorClass="text-meta"
+              isLoading={metaLoading && isMetaConnected}
+            />
+          </div>
+
+          {/* Platform summary */}
+          <PlatformSummaryCard
+            platform="Meta Ads"
+            icon={<Facebook className="h-4 w-4" />}
+            colorClass="text-meta"
+            borderClass="border-l-meta"
+            isConnected={isMetaConnected}
+            isLoading={metaLoading}
+            onConnect={() => navigate('/dashboard/connections')}
+            metrics={[
+              { label: 'Investimento', value: formatValue('spend', metaData?.spend), key: 'spend' },
+              { label: 'Leads', value: formatValue('leads', metaData?.leads), key: 'leads' },
+              { label: 'CPL', value: formatValue('costPerLead', metaData?.costPerLead), key: 'cpl' },
+              { label: 'CPM', value: formatValue('cpm', metaData?.cpm), key: 'cpm' },
+            ]}
+          />
+
+          {/* Temporal chart */}
+          <Card className="card-glow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Leads por Dia</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={mockMetaDailyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 47%, 16%)" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
+                    <YAxis tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
+                    <RechartsTooltip
+                      contentStyle={{ background: 'hsl(222, 47%, 10%)', border: '1px solid hsl(222, 47%, 16%)', borderRadius: '8px' }}
+                      labelStyle={{ color: 'hsl(210, 40%, 98%)' }}
+                    />
+                    <Bar dataKey="leads" fill="hsl(214, 89%, 52%)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Connection status */}
-        {!hasAnyConnection && (
-          <Card className="border-warning/50 bg-warning/5">
-            <CardContent className="flex items-center gap-4 py-4">
-              <AlertCircle className="h-5 w-5 text-warning flex-shrink-0" />
-              <div className="flex-1">
-                <p className="font-medium">Nenhuma plataforma conectada</p>
-                <p className="text-sm text-muted-foreground">
-                  Conecte sua conta do Meta Ads ou Google Ads para visualizar métricas reais.
-                </p>
-              </div>
-              <Button variant="outline" onClick={() => navigate('/dashboard/connections')}>
-                Conectar
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* No reports state */}
-        {!hasReports && (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Nenhum relatório configurado</h3>
-              <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-                Crie um relatório personalizado para visualizar as métricas que mais importam para você.
-              </p>
-              <Button onClick={() => navigate('/dashboard/reports')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Criar Relatório
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Report with no widgets */}
-        {hasReports && !hasWidgets && activeReport && (
-          <Card className="border-warning/50 bg-warning/5">
-            <CardContent className="flex items-center gap-4 py-6">
-              <AlertCircle className="h-6 w-6 text-warning flex-shrink-0" />
-              <div className="flex-1">
-                <p className="font-medium">Relatório sem métricas configuradas</p>
-                <p className="text-sm text-muted-foreground">
-                  O relatório "{activeReport.name}" não possui métricas configuradas.
-                </p>
-              </div>
-              <Button onClick={() => navigate(`/dashboard/reports/${activeReportId}/edit`)}>
-                <Settings className="h-4 w-4 mr-2" />
-                Configurar Métricas
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Report widgets */}
-        {hasWidgets && (
-          <>
-            {/* Meta Ads Metrics */}
-            {metaWidgets.length > 0 && (
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <h2 className="text-xl font-semibold">Meta Ads</h2>
-                  {!isMetaConnected && (
-                    <Badge variant="outline" className="text-warning border-warning">
-                      Não conectado
-                    </Badge>
-                  )}
-                </div>
-                
-                {!isMetaConnected ? (
-                  <Card className="border-warning/50 bg-warning/5">
-                    <CardContent className="flex items-center gap-4 py-4">
-                      <AlertCircle className="h-5 w-5 text-warning flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-sm text-muted-foreground">
-                          Conecte sua conta do Meta Ads para visualizar estas métricas.
-                        </p>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={() => navigate('/dashboard/connections')}>
-                        Conectar
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {metaWidgets.map((widget) => (
-                      <MetricCard
-                        key={widget.id}
-                        title={widget.display_name}
-                        value={formatValue(widget.metric_key, metaData?.[widget.metric_key])}
-                        icon={metricIcons[widget.metric_key] || <BarChart3 className="h-4 w-4" />}
-                        platform="meta"
-                        isLoading={metaLoading}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Google Ads Metrics */}
-            {googleWidgets.length > 0 && (
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <h2 className="text-xl font-semibold">Google Ads</h2>
-                  {!isGoogleConnected && (
-                    <Badge variant="outline" className="text-warning border-warning">
-                      Não conectado
-                    </Badge>
-                  )}
-                </div>
-                
-                {!isGoogleConnected ? (
-                  <Card className="border-warning/50 bg-warning/5">
-                    <CardContent className="flex items-center gap-4 py-4">
-                      <AlertCircle className="h-5 w-5 text-warning flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-sm text-muted-foreground">
-                          Conecte sua conta do Google Ads para visualizar estas métricas.
-                        </p>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={() => navigate('/dashboard/connections')}>
-                        Conectar
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {googleWidgets.map((widget) => (
-                      <MetricCard
-                        key={widget.id}
-                        title={widget.display_name}
-                        value={formatValue(widget.metric_key, googleData?.[widget.metric_key])}
-                        icon={metricIcons[widget.metric_key] || <BarChart3 className="h-4 w-4" />}
-                        platform="google"
-                        isLoading={googleLoading}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Charts - show when connected with real data */}
-        {hasAnyConnection && (metaData || googleData) && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="card-glow">
-              <CardHeader>
-                <CardTitle className="text-lg font-medium">Resumo de Métricas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {metaData && (
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <Badge variant="outline" className="badge-meta">Meta</Badge>
-                      </h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Gasto Total</p>
-                          <p className="text-lg font-semibold">{formatValue('spend', metaData.spend)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Leads</p>
-                          <p className="text-lg font-semibold">{metaData.leads || 0}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Leads (Pixel)</p>
-                          <p className="text-lg font-semibold">{metaData.pixelLeads || 0}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Custo por Lead</p>
-                          <p className="text-lg font-semibold">{formatValue('costPerLead', metaData.costPerLead)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {googleData && (
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <Badge variant="outline" className="badge-google">Google</Badge>
-                      </h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Gasto Total</p>
-                          <p className="text-lg font-semibold">{formatValue('cost', googleData.cost)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Conversões</p>
-                          <p className="text-lg font-semibold">{googleData.conversions || 0}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">CPC Médio</p>
-                          <p className="text-lg font-semibold">{formatValue('cpc', googleData.average_cpc)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Custo por Conversão</p>
-                          <p className="text-lg font-semibold">{formatValue('costPerConversion', googleData.cost_per_conversion)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="card-glow">
-              <CardHeader>
-                <CardTitle className="text-lg font-medium">Performance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {metaData && (
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <Badge variant="outline" className="badge-meta">Meta</Badge>
-                      </h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Impressões</p>
-                          <p className="text-lg font-semibold">{formatValue('impressions', metaData.impressions)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Cliques</p>
-                          <p className="text-lg font-semibold">{formatValue('clicks', metaData.clicks)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">CTR</p>
-                          <p className="text-lg font-semibold">{formatValue('ctr', metaData.ctr)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Alcance</p>
-                          <p className="text-lg font-semibold">{formatValue('reach', metaData.reach)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {googleData && (
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <Badge variant="outline" className="badge-google">Google</Badge>
-                      </h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Impressões</p>
-                          <p className="text-lg font-semibold">{formatValue('impressions', googleData.impressions)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Cliques</p>
-                          <p className="text-lg font-semibold">{formatValue('clicks', googleData.clicks)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">CTR</p>
-                          <p className="text-lg font-semibold">{formatValue('ctr', googleData.ctr)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">CPM Médio</p>
-                          <p className="text-lg font-semibold">{formatValue('cpm', googleData.average_cpm)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+        {/* === COLUMN 2: GOOGLE ADS === */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="h-4 w-4 text-google" />
+            <h2 className="text-sm font-semibold text-google uppercase tracking-wide">Google Ads</h2>
           </div>
-        )}
 
-        {/* Reports list when no widgets configured */}
-        {hasReports && !hasWidgets && (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Seus Relatórios</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {reports?.map((report) => (
-                <Card key={report.id} className="card-glow group cursor-pointer" onClick={() => navigate(`/dashboard/reports/${report.id}/view`)}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <CardTitle className="text-lg">{report.name}</CardTitle>
-                        {report.description && (
-                          <CardDescription className="line-clamp-2">
-                            {report.description}
-                          </CardDescription>
-                        )}
-                      </div>
-                      <Eye className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-2">
-                      {report.is_default && (
-                        <Badge variant="secondary">Padrão</Badge>
-                      )}
-                      <span className="text-xs text-muted-foreground">
-                        Criado em {new Date(report.created_at).toLocaleDateString('pt-BR')}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 gap-3">
+            <KpiCard
+              label="CPC Médio"
+              value={formatValue('average_cpc', googleData?.average_cpc)}
+              icon={<MousePointer className="h-4 w-4" />}
+              colorClass="text-google"
+              isLoading={googleLoading && isGoogleConnected}
+            />
+            <KpiCard
+              label="CPM"
+              value={formatValue('average_cpm', googleData?.average_cpm)}
+              icon={<DollarSign className="h-4 w-4" />}
+              colorClass="text-google"
+              isLoading={googleLoading && isGoogleConnected}
+            />
           </div>
-        )}
+
+          {/* Platform summary */}
+          <PlatformSummaryCard
+            platform="Google Ads"
+            icon={<TrendingUp className="h-4 w-4" />}
+            colorClass="text-google"
+            borderClass="border-l-google"
+            isConnected={isGoogleConnected}
+            isLoading={googleLoading}
+            onConnect={() => navigate('/dashboard/connections')}
+            metrics={[
+              { label: 'Custo', value: formatValue('cost', googleData?.cost), key: 'cost' },
+              { label: 'Conversões', value: formatValue('conversions', googleData?.conversions), key: 'conversions' },
+              { label: 'Custo/Conv.', value: formatValue('cost_per_conversion', googleData?.cost_per_conversion), key: 'cpc' },
+              { label: 'CPC Médio', value: formatValue('average_cpc', googleData?.average_cpc), key: 'avg_cpc' },
+            ]}
+          />
+
+          {/* Temporal chart */}
+          <Card className="card-glow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Conversões por Dia</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={mockGoogleDailyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 47%, 16%)" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
+                    <YAxis tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
+                    <RechartsTooltip
+                      contentStyle={{ background: 'hsl(222, 47%, 10%)', border: '1px solid hsl(222, 47%, 16%)', borderRadius: '8px' }}
+                      labelStyle={{ color: 'hsl(210, 40%, 98%)' }}
+                    />
+                    <Bar dataKey="conversions" fill="hsl(4, 90%, 58%)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* === COLUMN 3: ANALYTICS === */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Activity className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold text-primary uppercase tracking-wide">Analytics</h2>
+          </div>
+
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 gap-3">
+            <KpiCard
+              label="Sessões"
+              value="—"
+              icon={<Users className="h-4 w-4" />}
+              colorClass="text-primary"
+            />
+            <KpiCard
+              label="Novos Usuários"
+              value="—"
+              icon={<Users className="h-4 w-4" />}
+              colorClass="text-primary"
+            />
+          </div>
+
+          {/* Analytics summary - placeholder */}
+          <PlatformSummaryCard
+            platform="Google Analytics"
+            icon={<Activity className="h-4 w-4" />}
+            colorClass="text-primary"
+            borderClass="border-l-primary"
+            isConnected={false}
+            isLoading={false}
+            onConnect={() => navigate('/dashboard/connections')}
+            metrics={[
+              { label: 'Sessões', value: '—', key: 'sessions' },
+              { label: 'Novos Usuários', value: '—', key: 'new_users' },
+              { label: 'Taxa Engajamento', value: '—', key: 'engagement' },
+              { label: 'Eventos', value: '—', key: 'events' },
+            ]}
+          />
+
+          {/* Pie chart - source */}
+          <Card className="card-glow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Origem por Acesso</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={mockAnalyticsSources}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={70}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {mockAnalyticsSources.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Legend
+                      iconSize={8}
+                      wrapperStyle={{ fontSize: '11px', color: 'hsl(215, 20%, 55%)' }}
+                    />
+                    <RechartsTooltip
+                      contentStyle={{ background: 'hsl(222, 47%, 10%)', border: '1px solid hsl(222, 47%, 16%)', borderRadius: '8px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </DashboardLayout>
   );
