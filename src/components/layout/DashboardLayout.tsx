@@ -12,6 +12,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   BarChart3,
   Users,
   Settings,
@@ -21,6 +26,9 @@ import {
   LayoutDashboard,
   FileText,
   Link as LinkIcon,
+  Facebook,
+  TrendingUp,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -33,8 +41,14 @@ const adminNavItems = [
   { href: '/admin/users', label: 'Usuários', icon: Users },
 ];
 
-const clientNavItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+const platformNavItems = [
+  { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
+  { href: '/dashboard/meta', label: 'Meta Ads', icon: Facebook },
+  { href: '/dashboard/google', label: 'Google Ads', icon: TrendingUp },
+  { href: '/dashboard/analytics', label: 'Analytics', icon: Activity },
+];
+
+const bottomNavItems = [
   { href: '/dashboard/reports', label: 'Relatórios', icon: FileText },
   { href: '/dashboard/connections', label: 'Conexões', icon: LinkIcon },
   { href: '/dashboard/settings', label: 'Configurações', icon: Settings },
@@ -46,7 +60,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const navItems = role === 'admin' ? adminNavItems : clientNavItems;
+  const isAdmin = role === 'admin';
 
   const handleSignOut = async () => {
     await signOut();
@@ -55,10 +69,37 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const userInitials = user?.email?.substring(0, 2).toUpperCase() || 'U';
 
+  const isActive = (href: string) => {
+    if (href === '/dashboard') return location.pathname === '/dashboard';
+    return location.pathname.startsWith(href);
+  };
+
+  const SidebarIcon = ({ item }: { item: typeof platformNavItems[0] }) => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          to={item.href}
+          onClick={() => setSidebarOpen(false)}
+          className={cn(
+            "flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200",
+            isActive(item.href)
+              ? "bg-primary/20 text-primary shadow-glow-primary"
+              : "text-sidebar-foreground/50 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+          )}
+        >
+          <item.icon className="h-5 w-5" />
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8}>
+        {item.label}
+      </TooltipContent>
+    </Tooltip>
+  );
+
   return (
     <div className="min-h-screen bg-background">
       {/* Mobile header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 h-16 border-b border-border bg-card/95 backdrop-blur">
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 h-14 border-b border-border bg-card/95 backdrop-blur">
         <div className="flex items-center justify-between h-full px-4">
           <div className="flex items-center gap-3">
             <Button
@@ -70,18 +111,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </Button>
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-                <BarChart3 className="h-5 w-5 text-primary-foreground" />
+                <BarChart3 className="h-4 w-4 text-primary-foreground" />
               </div>
-              <span className="font-semibold text-gradient">Ads Dashboard</span>
+              <span className="font-semibold text-gradient text-sm">Ads Dashboard</span>
             </div>
           </div>
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                <Avatar className="h-9 w-9">
+              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                <Avatar className="h-8 w-8">
                   <AvatarImage src="" />
-                  <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                     {userInitials}
                   </AvatarFallback>
                 </Avatar>
@@ -112,76 +153,70 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Compact Icon Sidebar */}
       <aside
         className={cn(
-          "fixed top-0 left-0 z-50 h-full w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:translate-x-0",
+          "fixed top-0 left-0 z-50 h-full w-[72px] bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:translate-x-0 flex flex-col",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="h-16 flex items-center gap-3 px-6 border-b border-sidebar-border">
-            <div className="h-9 w-9 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <BarChart3 className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="font-bold text-lg text-gradient">Ads Dashboard</span>
+        {/* Logo */}
+        <div className="h-14 flex items-center justify-center border-b border-sidebar-border">
+          <div className="h-9 w-9 rounded-lg bg-gradient-primary flex items-center justify-center">
+            <BarChart3 className="h-5 w-5 text-primary-foreground" />
           </div>
+        </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1 relative z-10">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors relative z-10 cursor-pointer",
-                    isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                  )}
-                >
-                  <item.icon className="h-5 w-5 flex-shrink-0" />
-                  <span className="font-medium">{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+        {/* Platform Navigation */}
+        <nav className="flex-1 flex flex-col items-center py-4 gap-2">
+          {isAdmin ? (
+            adminNavItems.map((item) => <SidebarIcon key={item.href} item={item} />)
+          ) : (
+            platformNavItems.map((item) => <SidebarIcon key={item.href} item={item} />)
+          )}
 
-          {/* User section */}
-          <div className="p-4 border-t border-sidebar-border">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-sidebar-accent/50 transition-colors">
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src="" />
-                    <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                      {userInitials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 text-left">
-                    <p className="text-sm font-medium truncate">{user?.email}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{role}</p>
-                  </div>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" side="top">
-                <DropdownMenuItem onClick={handleSignOut}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sair
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {/* Separator */}
+          {!isAdmin && (
+            <>
+              <div className="w-8 h-px bg-sidebar-border my-2" />
+              {bottomNavItems.map((item) => <SidebarIcon key={item.href} item={item} />)}
+            </>
+          )}
+        </nav>
+
+        {/* User avatar at bottom */}
+        <div className="pb-4 flex justify-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center justify-center w-12 h-12 rounded-xl hover:bg-sidebar-accent/50 transition-colors">
+                <Avatar className="h-9 w-9">
+                  <AvatarImage src="" />
+                  <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                    {userInitials}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" side="right">
+              <DropdownMenuLabel>
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium truncate">{user?.email}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{role}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </aside>
 
       {/* Main content */}
-      <main className="lg:pl-64 pt-16 lg:pt-0 min-h-screen">
-        <div className="p-6 lg:p-8">
+      <main className="lg:pl-[72px] pt-14 lg:pt-0 min-h-screen">
+        <div className="p-4 lg:p-6">
           {children}
         </div>
       </main>

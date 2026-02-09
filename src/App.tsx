@@ -10,6 +10,9 @@ import Auth from "./pages/Auth";
 import AdminClients from "./pages/admin/AdminClients";
 import AdminUsers from "./pages/admin/AdminUsers";
 import Dashboard from "./pages/dashboard/Dashboard";
+import MetaAds from "./pages/dashboard/MetaAds";
+import GoogleAds from "./pages/dashboard/GoogleAds";
+import Analytics from "./pages/dashboard/Analytics";
 import Connections from "./pages/dashboard/Connections";
 import Reports from "./pages/dashboard/Reports";
 import ReportEditor from "./pages/dashboard/ReportEditor";
@@ -54,6 +57,30 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dashboard/meta" 
+              element={
+                <ProtectedRoute>
+                  <MetaAds />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dashboard/google" 
+              element={
+                <ProtectedRoute>
+                  <GoogleAds />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dashboard/analytics" 
+              element={
+                <ProtectedRoute>
+                  <Analytics />
                 </ProtectedRoute>
               } 
             />
