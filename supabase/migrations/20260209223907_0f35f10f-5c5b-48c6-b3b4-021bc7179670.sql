@@ -1,0 +1,2 @@
+ALTER TABLE public.report_widgets DROP CONSTRAINT IF EXISTS report_widgets_platform_check;
+ALTER TABLE public.report_widgets ADD CONSTRAINT report_widgets_platform_check CHECK (platform IN ('meta', 'google', 'analytics'));
