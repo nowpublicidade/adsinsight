@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import PlatformHeader from '@/components/layout/PlatformHeader';
+import { useDashboardFilters, manualFetchOptions } from '@/hooks/useDashboardFilters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import {
@@ -51,7 +53,7 @@ function useGAData(clientId: string | null, breakdown?: string, dateFrom?: strin
       return data;
     },
     enabled: !!clientId,
-    staleTime: 5 * 60 * 1000,
+    ...manualFetchOptions,
   });
 }
 
@@ -72,15 +74,20 @@ function KpiCard({ label, value, subtitle }: { label: string; value: string; sub
 export default function Analytics() {
   const { clientId } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
-  const [datePreset, setDatePreset] = useState('last_7d');
+  const { datePreset, setDatePreset, customDateRange, setCustomDateRange, isRefreshing, handleRefresh, getCustomDateStrings } = useDashboardFilters(['ga-insights']);
 
-  const dateMap: Record<string, { from: string; to: string }> = {
+  const gaDateMap: Record<string, { from: string; to: string }> = {
+    today: { from: 'today', to: 'today' },
+    yesterday: { from: 'yesterday', to: 'yesterday' },
     last_7d: { from: '7daysAgo', to: 'today' },
     last_14d: { from: '14daysAgo', to: 'today' },
     last_30d: { from: '30daysAgo', to: 'today' },
-    last_90d: { from: '90daysAgo', to: 'today' },
+    this_month: { from: '30daysAgo', to: 'today' },
+    last_month: { from: '60daysAgo', to: '30daysAgo' },
   };
-  const { from: dateFrom, to: dateTo } = dateMap[datePreset] || dateMap.last_7d;
+  const customDates = getCustomDateStrings();
+  const dateFrom = customDates ? customDates.from : (gaDateMap[datePreset]?.from || '7daysAgo');
+  const dateTo = customDates ? customDates.to : (gaDateMap[datePreset]?.to || 'today');
 
   const { data: overview, isLoading: loadingOverview } = useGAData(clientId, undefined, dateFrom, dateTo);
   const { data: dailyData, isLoading: loadingDaily } = useGAData(clientId, 'daily', dateFrom, dateTo);
@@ -108,6 +115,10 @@ export default function Analytics() {
         tabs={tabs}
         datePreset={datePreset}
         onDatePresetChange={setDatePreset}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+        customDateRange={customDateRange}
+        onCustomDateRangeChange={setCustomDateRange}
       />
 
       {activeTab === 'overview' && (

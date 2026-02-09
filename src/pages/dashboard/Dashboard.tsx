@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,6 +24,7 @@ import {
   ArrowDownRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useDashboardFilters, manualFetchOptions } from '@/hooks/useDashboardFilters';
 import {
   BarChart,
   Bar,
@@ -132,7 +133,7 @@ const COLORS = ['hsl(188, 95%, 43%)', 'hsl(217, 91%, 60%)', 'hsl(142, 76%, 36%)'
 export default function Dashboard() {
   const { clientId } = useAuth();
   const navigate = useNavigate();
-  const [datePreset, setDatePreset] = useState('last_7d');
+  const { datePreset, setDatePreset, customDateRange, setCustomDateRange, isRefreshing, handleRefresh } = useDashboardFilters(['client', 'meta-insights', 'google-insights', 'ga-home-insights', 'ga-home-sources']);
 
   const { data: client, isLoading: clientLoading } = useQuery({
     queryKey: ['client', clientId],
@@ -250,6 +251,10 @@ export default function Dashboard() {
         tabs={[]}
         datePreset={datePreset}
         onDatePresetChange={setDatePreset}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+        customDateRange={customDateRange}
+        onCustomDateRangeChange={setCustomDateRange}
       />
 
       {/* 3-Column Layout */}

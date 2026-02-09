@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -31,6 +31,7 @@ import {
   ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useDashboardFilters, manualFetchOptions } from '@/hooks/useDashboardFilters';
 import {
   BarChart,
   Bar,
@@ -145,7 +146,7 @@ export default function MetaAds() {
   const { clientId } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
-  const [datePreset, setDatePreset] = useState('last_7d');
+  const { datePreset, setDatePreset, customDateRange, setCustomDateRange, isRefreshing, handleRefresh } = useDashboardFilters(['meta-insights', 'meta-campaigns', 'meta-daily', 'meta-ads', 'meta-demographics', 'meta-platforms', 'meta-positions']);
   const [campaignPage, setCampaignPage] = useState(0);
   const [adPage, setAdPage] = useState(0);
   const pageSize = 10;
@@ -174,9 +175,8 @@ export default function MetaAds() {
       return data?.metrics || null;
     },
     enabled: !!clientId && isConnected,
+    ...manualFetchOptions,
   });
-
-  // Campaign breakdown
   const { data: campaignData, isLoading: campaignsLoading } = useQuery({
     queryKey: ['meta-campaigns', clientId, datePreset],
     queryFn: async () => {
@@ -306,7 +306,7 @@ export default function MetaAds() {
   if (!isConnected) {
     return (
       <DashboardLayout>
-        <PlatformHeader platform="meta" activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} datePreset={datePreset} onDatePresetChange={setDatePreset} />
+        <PlatformHeader platform="meta" activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} datePreset={datePreset} onDatePresetChange={setDatePreset} onRefresh={handleRefresh} isRefreshing={isRefreshing} customDateRange={customDateRange} onCustomDateRangeChange={setCustomDateRange} />
         <Card className="border-warning/50 bg-warning/5">
           <CardContent className="flex flex-col items-center gap-4 py-12">
             <AlertCircle className="h-12 w-12 text-warning" />
@@ -321,7 +321,7 @@ export default function MetaAds() {
 
   return (
     <DashboardLayout>
-      <PlatformHeader platform="meta" activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} datePreset={datePreset} onDatePresetChange={setDatePreset} />
+      <PlatformHeader platform="meta" activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} datePreset={datePreset} onDatePresetChange={setDatePreset} onRefresh={handleRefresh} isRefreshing={isRefreshing} customDateRange={customDateRange} onCustomDateRangeChange={setCustomDateRange} />
 
       {/* === VISÃO GERAL === */}
       {activeTab === 'overview' && (
