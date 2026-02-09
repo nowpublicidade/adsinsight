@@ -127,21 +127,7 @@ function PlatformSummaryCard({
   );
 }
 
-// Mock daily data for charts
-const mockMetaDailyData = [
-  { day: 'Seg', leads: 12 }, { day: 'Ter', leads: 18 }, { day: 'Qua', leads: 15 },
-  { day: 'Qui', leads: 22 }, { day: 'Sex', leads: 20 }, { day: 'Sáb', leads: 8 }, { day: 'Dom', leads: 5 },
-];
-const mockGoogleDailyData = [
-  { day: 'Seg', conversions: 8 }, { day: 'Ter', conversions: 14 }, { day: 'Qua', conversions: 11 },
-  { day: 'Qui', conversions: 16 }, { day: 'Sex', conversions: 13 }, { day: 'Sáb', conversions: 6 }, { day: 'Dom', conversions: 3 },
-];
-const mockAnalyticsSources = [
-  { name: 'Orgânico', value: 42, color: 'hsl(188, 95%, 43%)' },
-  { name: 'Pago', value: 28, color: 'hsl(217, 91%, 60%)' },
-  { name: 'Social', value: 18, color: 'hsl(142, 76%, 36%)' },
-  { name: 'Direto', value: 12, color: 'hsl(38, 92%, 50%)' },
-];
+const COLORS = ['hsl(188, 95%, 43%)', 'hsl(217, 91%, 60%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(4, 90%, 58%)', 'hsl(280, 70%, 55%)'];
 
 export default function Dashboard() {
   const { clientId } = useAuth();
@@ -187,6 +173,49 @@ export default function Dashboard() {
 
   const isMetaConnected = !!client?.meta_connected_at;
   const isGoogleConnected = !!client?.google_connected_at;
+  const isAnalyticsConnected = !!(client as any)?.ga_connected_at;
+
+  // Fetch GA overview data
+  const { data: gaData, isLoading: gaLoading } = useQuery({
+    queryKey: ['ga-home-insights', clientId, datePreset],
+    queryFn: async () => {
+      if (!clientId) return null;
+      const dateMap: Record<string, { from: string; to: string }> = {
+        last_7d: { from: '7daysAgo', to: 'today' },
+        last_14d: { from: '14daysAgo', to: 'today' },
+        last_30d: { from: '30daysAgo', to: 'today' },
+        last_90d: { from: '90daysAgo', to: 'today' },
+      };
+      const { from, to } = dateMap[datePreset] || dateMap.last_7d;
+      const { data, error } = await supabase.functions.invoke('google-analytics-insights', {
+        body: { client_id: clientId, date_from: from, date_to: to },
+      });
+      if (error) throw error;
+      return data?.metrics || null;
+    },
+    enabled: !!clientId && isAnalyticsConnected,
+  });
+
+  // Fetch GA source data for pie chart
+  const { data: gaSourceData } = useQuery({
+    queryKey: ['ga-home-sources', clientId, datePreset],
+    queryFn: async () => {
+      if (!clientId) return null;
+      const dateMap: Record<string, { from: string; to: string }> = {
+        last_7d: { from: '7daysAgo', to: 'today' },
+        last_14d: { from: '14daysAgo', to: 'today' },
+        last_30d: { from: '30daysAgo', to: 'today' },
+        last_90d: { from: '90daysAgo', to: 'today' },
+      };
+      const { from, to } = dateMap[datePreset] || dateMap.last_7d;
+      const { data, error } = await supabase.functions.invoke('google-analytics-insights', {
+        body: { client_id: clientId, date_from: from, date_to: to, breakdown: 'source' },
+      });
+      if (error) throw error;
+      return data?.data || null;
+    },
+    enabled: !!clientId && isAnalyticsConnected,
+  });
 
   if (clientLoading) {
     return (
@@ -275,18 +304,9 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={mockMetaDailyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 47%, 16%)" />
-                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
-                    <YAxis tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
-                    <RechartsTooltip
-                      contentStyle={{ background: 'hsl(222, 47%, 10%)', border: '1px solid hsl(222, 47%, 16%)', borderRadius: '8px' }}
-                      labelStyle={{ color: 'hsl(210, 40%, 98%)' }}
-                    />
-                    <Bar dataKey="leads" fill="hsl(214, 89%, 52%)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                  Conecte o Meta Ads para ver dados temporais
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -341,18 +361,9 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={mockGoogleDailyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 47%, 16%)" />
-                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
-                    <YAxis tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
-                    <RechartsTooltip
-                      contentStyle={{ background: 'hsl(222, 47%, 10%)', border: '1px solid hsl(222, 47%, 16%)', borderRadius: '8px' }}
-                      labelStyle={{ color: 'hsl(210, 40%, 98%)' }}
-                    />
-                    <Bar dataKey="conversions" fill="hsl(4, 90%, 58%)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                  Conecte o Google Ads para ver dados temporais
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -369,32 +380,34 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 gap-3">
             <KpiCard
               label="Sessões"
-              value="—"
+              value={isAnalyticsConnected ? formatValue('sessions', gaData?.sessions) : '—'}
               icon={<Users className="h-4 w-4" />}
               colorClass="text-primary"
+              isLoading={gaLoading && isAnalyticsConnected}
             />
             <KpiCard
               label="Novos Usuários"
-              value="—"
+              value={isAnalyticsConnected ? formatValue('newUsers', gaData?.newUsers) : '—'}
               icon={<Users className="h-4 w-4" />}
               colorClass="text-primary"
+              isLoading={gaLoading && isAnalyticsConnected}
             />
           </div>
 
-          {/* Analytics summary - placeholder */}
+          {/* Analytics summary */}
           <PlatformSummaryCard
             platform="Google Analytics"
             icon={<Activity className="h-4 w-4" />}
             colorClass="text-primary"
             borderClass="border-l-primary"
-            isConnected={false}
-            isLoading={false}
+            isConnected={isAnalyticsConnected}
+            isLoading={gaLoading}
             onConnect={() => navigate('/dashboard/connections')}
             metrics={[
-              { label: 'Sessões', value: '—', key: 'sessions' },
-              { label: 'Novos Usuários', value: '—', key: 'new_users' },
-              { label: 'Taxa Engajamento', value: '—', key: 'engagement' },
-              { label: 'Eventos', value: '—', key: 'events' },
+              { label: 'Sessões', value: isAnalyticsConnected ? formatValue('sessions', gaData?.sessions) : '—', key: 'sessions' },
+              { label: 'Novos Usuários', value: isAnalyticsConnected ? formatValue('newUsers', gaData?.newUsers) : '—', key: 'new_users' },
+              { label: 'Taxa Engajamento', value: isAnalyticsConnected && gaData?.engagementRate ? `${(gaData.engagementRate * 100).toFixed(1)}%` : '—', key: 'engagement' },
+              { label: 'Eventos', value: isAnalyticsConnected ? formatValue('eventCount', gaData?.eventCount) : '—', key: 'events' },
             ]}
           />
 
@@ -405,30 +418,39 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={mockAnalyticsSources}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={70}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {mockAnalyticsSources.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Legend
-                      iconSize={8}
-                      wrapperStyle={{ fontSize: '11px', color: 'hsl(215, 20%, 55%)' }}
-                    />
-                    <RechartsTooltip
-                      contentStyle={{ background: 'hsl(222, 47%, 10%)', border: '1px solid hsl(222, 47%, 16%)', borderRadius: '8px' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                {isAnalyticsConnected && gaSourceData && gaSourceData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={gaSourceData.slice(0, 6).map((r: any) => ({
+                          name: r.sessionSource || '(direto)',
+                          value: r.sessions || 0,
+                        }))}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={70}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {gaSourceData.slice(0, 6).map((_: any, index: number) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Legend
+                        iconSize={8}
+                        wrapperStyle={{ fontSize: '11px', color: 'hsl(215, 20%, 55%)' }}
+                      />
+                      <RechartsTooltip
+                        contentStyle={{ background: 'hsl(222, 47%, 10%)', border: '1px solid hsl(222, 47%, 16%)', borderRadius: '8px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                    {isAnalyticsConnected ? 'Sem dados de origem' : 'Conecte o Analytics'}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

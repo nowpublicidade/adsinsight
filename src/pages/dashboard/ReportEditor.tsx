@@ -69,14 +69,25 @@ const AVAILABLE_METRICS = {
     { key: 'conversion_value', name: 'Valor de Conversão', icon: DollarSign, category: 'Conversões' },
     { key: 'roas', name: 'ROAS', icon: TrendingUp, category: 'Conversões' },
   ],
+  analytics: [
+    { key: 'sessions', name: 'Sessões', icon: BarChart3, category: 'Tráfego' },
+    { key: 'newUsers', name: 'Novos Usuários', icon: Users, category: 'Tráfego' },
+    { key: 'totalUsers', name: 'Total de Usuários', icon: Users, category: 'Tráfego' },
+    { key: 'engagementRate', name: 'Taxa de Engajamento', icon: TrendingUp, category: 'Engajamento' },
+    { key: 'eventCount', name: 'Eventos', icon: Target, category: 'Engajamento' },
+    { key: 'averageSessionDuration', name: 'Duração Média', icon: BarChart3, category: 'Engajamento' },
+    { key: 'sessionsPerUser', name: 'Sessões por Usuário', icon: Users, category: 'Engajamento' },
+    { key: 'engagedSessions', name: 'Sessões Engajadas', icon: TrendingUp, category: 'Engajamento' },
+    { key: 'screenPageViews', name: 'Visualizações de Página', icon: EyeIcon, category: 'Conteúdo' },
+  ],
 };
 
 type WidgetType = {
   id?: string;
   metric_key: string;
   display_name: string;
-  platform: 'meta' | 'google';
-  visualization_type: 'card' | 'chart' | 'table';
+  platform: 'meta' | 'google' | 'analytics';
+  visualization_type: 'card' | 'chart' | 'table' | 'funnel';
   position: number;
   is_visible: boolean;
 };
@@ -133,8 +144,8 @@ export default function ReportEditor() {
         id: w.id,
         metric_key: w.metric_key,
         display_name: w.display_name,
-        platform: w.platform as 'meta' | 'google',
-        visualization_type: w.visualization_type as 'card' | 'chart' | 'table',
+        platform: w.platform as 'meta' | 'google' | 'analytics',
+        visualization_type: w.visualization_type as 'card' | 'chart' | 'table' | 'funnel',
         position: w.position,
         is_visible: w.is_visible ?? true,
       })));
@@ -187,7 +198,7 @@ export default function ReportEditor() {
     },
   });
 
-  const addWidget = (metric: typeof AVAILABLE_METRICS.meta[0], platform: 'meta' | 'google') => {
+  const addWidget = (metric: typeof AVAILABLE_METRICS.meta[0], platform: 'meta' | 'google' | 'analytics') => {
     const exists = widgets.some(w => w.metric_key === metric.key && w.platform === platform);
     if (exists) {
       toast.error('Esta métrica já foi adicionada');
@@ -244,6 +255,7 @@ export default function ReportEditor() {
 
   const metaCategories = [...new Set(AVAILABLE_METRICS.meta.map(m => m.category))];
   const googleCategories = [...new Set(AVAILABLE_METRICS.google.map(m => m.category))];
+  const analyticsCategories = [...new Set(AVAILABLE_METRICS.analytics.map(m => m.category))];
 
   return (
     <DashboardLayout>
@@ -312,7 +324,9 @@ export default function ReportEditor() {
                           </div>
                           <div className="flex-1">
                             <p className="font-medium text-sm">{widget.display_name}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{widget.platform}</p>
+                          <p className="text-xs text-muted-foreground capitalize">
+                            {widget.platform === 'analytics' ? 'Analytics' : widget.platform}
+                          </p>
                           </div>
                           <Badge variant="secondary" className="text-xs">
                             {widget.visualization_type}
@@ -366,8 +380,9 @@ export default function ReportEditor() {
               <CardContent>
                 <Tabs defaultValue="meta">
                   <TabsList className="w-full">
-                    <TabsTrigger value="meta" className="flex-1">Meta Ads</TabsTrigger>
-                    <TabsTrigger value="google" className="flex-1">Google Ads</TabsTrigger>
+                    <TabsTrigger value="meta" className="flex-1">Meta</TabsTrigger>
+                    <TabsTrigger value="google" className="flex-1">Google</TabsTrigger>
+                    <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="meta" className="space-y-4 mt-4">
@@ -427,6 +442,43 @@ export default function ReportEditor() {
                                   size="sm"
                                   className="justify-start h-auto py-2"
                                   onClick={() => addWidget(metric, 'google')}
+                                  disabled={isAdded}
+                                >
+                                  <metric.icon className="h-4 w-4 mr-2" />
+                                  <span className="text-sm">{metric.name}</span>
+                                  {isAdded && (
+                                    <Badge variant="outline" className="ml-auto text-xs">
+                                      Adicionado
+                                    </Badge>
+                                  )}
+                                </Button>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    ))}
+                  </TabsContent>
+
+                  <TabsContent value="analytics" className="space-y-4 mt-4">
+                    {analyticsCategories.map(category => (
+                      <div key={category}>
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                          {category}
+                        </Label>
+                        <div className="grid grid-cols-1 gap-1 mt-2">
+                          {AVAILABLE_METRICS.analytics
+                            .filter(m => m.category === category)
+                            .map(metric => {
+                              const isAdded = widgets.some(
+                                w => w.metric_key === metric.key && w.platform === 'analytics'
+                              );
+                              return (
+                                <Button
+                                  key={metric.key}
+                                  variant={isAdded ? "secondary" : "ghost"}
+                                  size="sm"
+                                  className="justify-start h-auto py-2"
+                                  onClick={() => addWidget(metric, 'analytics')}
                                   disabled={isAdded}
                                 >
                                   <metric.icon className="h-4 w-4 mr-2" />
