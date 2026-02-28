@@ -45,7 +45,7 @@ async function getAccessToken(client: any, clientId: string, supabase: any) {
 
 async function executeQuery(query: string, customerId: string, accessToken: string, devToken: string) {
   console.log(`[DEBUG] GAQL query: ${query}`);
-  const url = `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:searchStream`;
+  const url = `https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'developer-token': devToken, 'Content-Type': 'application/json' },
