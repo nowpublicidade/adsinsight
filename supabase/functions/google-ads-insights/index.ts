@@ -44,19 +44,28 @@ async function getAccessToken(client: any, clientId: string, supabase: any) {
 }
 
 async function executeQuery(query: string, customerId: string, accessToken: string, devToken: string) {
-  const res = await fetch(`https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:searchStream`, {
+  console.log(`[DEBUG] GAQL query: ${query}`);
+  const url = `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:searchStream`;
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'developer-token': devToken, 'Content-Type': 'application/json' },
     body: JSON.stringify({ query }),
   });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message || 'Google Ads API error');
+  const rawText = await res.text();
+  console.log(`[DEBUG] Google Ads API status: ${res.status}, response length: ${rawText.length}`);
+  console.log(`[DEBUG] Google Ads API raw response (first 2000 chars): ${rawText.substring(0, 2000)}`);
+  
+  let data;
+  try { data = JSON.parse(rawText); } catch (e) { throw new Error(`Failed to parse response: ${rawText.substring(0, 500)}`); }
+  
+  if (data.error) throw new Error(JSON.stringify(data.error));
   const results: any[] = [];
   if (Array.isArray(data)) {
     for (const batch of data) {
       if (batch.results) results.push(...batch.results);
     }
   }
+  console.log(`[DEBUG] Parsed ${results.length} results`);
   return results;
 }
 
