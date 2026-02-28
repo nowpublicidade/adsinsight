@@ -74,8 +74,8 @@ function processAggregateMetrics(results: any[]) {
   for (const r of results) {
     const m = r.metrics || {};
     cost += (m.costMicros || 0) / 1_000_000;
-    impressions += m.impressions || 0;
-    clicks += m.clicks || 0;
+    impressions += parseInt(m.impressions || '0', 10);
+    clicks += parseInt(m.clicks || '0', 10);
     conversions += m.conversions || 0;
     conversionValue += m.conversionsValue || 0;
   }
@@ -120,8 +120,8 @@ serve(async (req) => {
       const campaigns = results.map(r => {
         const m = r.metrics || {};
         const cost = (m.costMicros || 0) / 1_000_000;
-        const clicks = m.clicks || 0;
-        const impressions = m.impressions || 0;
+        const clicks = parseInt(m.clicks || '0', 10);
+        const impressions = parseInt(m.impressions || '0', 10);
         const conversions = m.conversions || 0;
         return {
           campaign_name: r.campaign?.name || 'Unknown',
@@ -145,13 +145,13 @@ serve(async (req) => {
       const adGroups = results.map(r => {
         const m = r.metrics || {};
         const cost = (m.costMicros || 0) / 1_000_000;
-        const clicks = m.clicks || 0;
+        const clicks = parseInt(m.clicks || '0', 10);
         const conversions = m.conversions || 0;
         return {
           ad_group_name: r.adGroup?.name || 'Unknown',
           ad_group_id: r.adGroup?.id,
           campaign_name: r.campaign?.name || '',
-          cost, impressions: m.impressions || 0, clicks, conversions,
+          cost, impressions: parseInt(m.impressions || '0', 10), clicks, conversions,
           cost_per_conversion: conversions > 0 ? cost / conversions : 0,
           conversion_rate: clicks > 0 ? (conversions / clicks) * 100 : 0,
         };
@@ -166,8 +166,8 @@ serve(async (req) => {
       const keywords = results.map(r => {
         const m = r.metrics || {};
         const cost = (m.costMicros || 0) / 1_000_000;
-        const clicks = m.clicks || 0;
-        const impressions = m.impressions || 0;
+        const clicks = parseInt(m.clicks || '0', 10);
+        const impressions = parseInt(m.impressions || '0', 10);
         const conversions = m.conversions || 0;
         return {
           keyword_text: r.adGroupCriterion?.keyword?.text || 'Unknown',
@@ -191,7 +191,7 @@ serve(async (req) => {
       const daily = results.map(r => {
         const m = r.metrics || {};
         const cost = (m.costMicros || 0) / 1_000_000;
-        return { date: r.segments?.date, cost, impressions: m.impressions || 0, clicks: m.clicks || 0, conversions: m.conversions || 0, conversion_value: m.conversionsValue || 0 };
+        return { date: r.segments?.date, cost, impressions: parseInt(m.impressions || '0', 10), clicks: parseInt(m.clicks || '0', 10), conversions: m.conversions || 0, conversion_value: m.conversionsValue || 0 };
       });
       return new Response(JSON.stringify({ daily }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -203,7 +203,7 @@ serve(async (req) => {
       const monthly = results.map(r => {
         const m = r.metrics || {};
         const cost = (m.costMicros || 0) / 1_000_000;
-        return { month: r.segments?.month, cost, impressions: m.impressions || 0, clicks: m.clicks || 0, conversions: m.conversions || 0, conversion_value: m.conversionsValue || 0 };
+        return { month: r.segments?.month, cost, impressions: parseInt(m.impressions || '0', 10), clicks: parseInt(m.clicks || '0', 10), conversions: m.conversions || 0, conversion_value: m.conversionsValue || 0 };
       });
       return new Response(JSON.stringify({ monthly }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -218,8 +218,8 @@ serve(async (req) => {
         const day = r.segments?.dayOfWeek || 'UNKNOWN';
         if (!byDay[day]) byDay[day] = { cost: 0, impressions: 0, clicks: 0, conversions: 0 };
         byDay[day].cost += (m.costMicros || 0) / 1_000_000;
-        byDay[day].impressions += m.impressions || 0;
-        byDay[day].clicks += m.clicks || 0;
+        byDay[day].impressions += parseInt(m.impressions || '0', 10);
+        byDay[day].clicks += parseInt(m.clicks || '0', 10);
         byDay[day].conversions += m.conversions || 0;
       }
       const dayOfWeek = Object.entries(byDay).map(([day, data]) => ({ day, ...data }));

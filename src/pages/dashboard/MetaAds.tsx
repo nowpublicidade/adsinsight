@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import PlatformHeader from '@/components/layout/PlatformHeader';
+import FunnelChart from '@/components/FunnelChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -99,42 +100,7 @@ function KpiCard({ label, value, icon, variation, isLoading }: {
   );
 }
 
-// Funnel Chart component
-function FunnelChart({ data }: { data: { label: string; value: number }[] }) {
-  const maxValue = Math.max(...data.map(d => d.value), 1);
-  return (
-    <div className="space-y-3">
-      {data.map((item, i) => {
-        const widthPercent = Math.max((item.value / maxValue) * 100, 10);
-        const opacity = 1 - (i * 0.15);
-        return (
-          <div key={item.label} className="space-y-1">
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">{item.label}</span>
-              <span className="font-semibold">{item.value.toLocaleString('pt-BR')}</span>
-            </div>
-            <div className="w-full bg-secondary/30 rounded-full h-8 overflow-hidden">
-              <div
-                className="h-full rounded-full flex items-center justify-center transition-all duration-500"
-                style={{
-                  width: `${widthPercent}%`,
-                  background: `linear-gradient(90deg, hsl(214, 89%, ${52 + i * 5}%), hsl(230, 89%, ${55 + i * 5}%))`,
-                  opacity,
-                }}
-              >
-                {widthPercent > 20 && (
-                  <span className="text-xs font-medium text-white/90">
-                    {((item.value / maxValue) * 100).toFixed(0)}%
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+// FunnelChart is now imported from shared component
 
 const PIE_COLORS = [
   'hsl(214, 89%, 52%)', 'hsl(230, 89%, 62%)', 'hsl(188, 95%, 43%)', 
@@ -290,9 +256,8 @@ export default function MetaAds() {
 
   // Funnel data
   const funnelData = metrics ? [
-    { label: 'Alcance', value: metrics.reach || 0 },
     { label: 'Impressões', value: metrics.impressions || 0 },
-    { label: 'Cliques no Link', value: metrics.linkClicks || metrics.clicks || 0 },
+    { label: 'Cliques', value: metrics.linkClicks || metrics.clicks || 0 },
     { label: 'Leads', value: metrics.leads || 0 },
   ] : [];
 
@@ -398,7 +363,7 @@ export default function MetaAds() {
                 {metricsLoading ? (
                   <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
                 ) : (
-                  <FunnelChart data={funnelData} />
+                  <FunnelChart data={funnelData} colorScheme="meta" />
                 )}
               </CardContent>
             </Card>

@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import PlatformHeader from '@/components/layout/PlatformHeader';
+import FunnelChart from '@/components/FunnelChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -52,30 +53,7 @@ function KpiCard({ label, value, icon, isLoading }: { label: string; value: stri
   );
 }
 
-function FunnelChart({ data }: { data: { label: string; value: number }[] }) {
-  const maxValue = Math.max(...data.map(d => d.value), 1);
-  return (
-    <div className="space-y-3">
-      {data.map((item, i) => {
-        const widthPercent = Math.max((item.value / maxValue) * 100, 10);
-        const opacity = 1 - (i * 0.12);
-        return (
-          <div key={item.label} className="space-y-1">
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">{item.label}</span>
-              <span className="font-semibold">{typeof item.value === 'number' && item.value % 1 !== 0 ? item.value.toFixed(2) : item.value.toLocaleString('pt-BR')}</span>
-            </div>
-            <div className="w-full bg-secondary/30 rounded-full h-8 overflow-hidden">
-              <div className="h-full rounded-full flex items-center justify-center transition-all duration-500" style={{ width: `${widthPercent}%`, background: `linear-gradient(90deg, hsl(4, 90%, ${55 + i * 4}%), hsl(36, 100%, ${48 + i * 4}%))`, opacity }}>
-                {widthPercent > 20 && <span className="text-xs font-medium text-white/90">{((item.value / maxValue) * 100).toFixed(0)}%</span>}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+// FunnelChart is now imported from shared component
 
 const DAY_NAMES: Record<string, string> = { MONDAY: 'Segunda', TUESDAY: 'Terça', WEDNESDAY: 'Quarta', THURSDAY: 'Quinta', FRIDAY: 'Sexta', SATURDAY: 'Sábado', SUNDAY: 'Domingo' };
 
@@ -179,9 +157,8 @@ export default function GoogleAds() {
   const totalKeywordPages = keywordData ? Math.ceil((keywordData as any[]).length / pageSize) : 0;
 
   const funnelData = metrics ? [
-    { label: 'Impressões', value: metrics.impressions || 0 },
-    { label: 'Cliques', value: metrics.clicks || 0 },
-    { label: 'Custo', value: metrics.cost || 0 },
+    { label: 'Impressões', value: parseInt(metrics.impressions || '0', 10) },
+    { label: 'Cliques', value: parseInt(metrics.clicks || '0', 10) },
     { label: 'Conversões', value: metrics.conversions || 0 },
   ] : [];
 
@@ -269,9 +246,9 @@ export default function GoogleAds() {
 
             {/* Funnel */}
             <Card className="card-glow">
-              <CardHeader className="pb-2"><CardTitle className="text-lg">Funil de Métricas</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-lg">Funil de Conversão</CardTitle></CardHeader>
               <CardContent>
-                {metricsLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div> : <FunnelChart data={funnelData} />}
+                {metricsLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div> : <FunnelChart data={funnelData} colorScheme="google" />}
               </CardContent>
             </Card>
           </div>
