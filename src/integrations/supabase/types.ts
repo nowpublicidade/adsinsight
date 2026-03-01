@@ -33,6 +33,7 @@ export type Database = {
           meta_access_token: string | null
           meta_ad_account_id: string | null
           meta_connected_at: string | null
+          meta_primary_metric: string | null
           meta_token_expires_at: string | null
           meta_user_id: string | null
           name: string
@@ -58,6 +59,7 @@ export type Database = {
           meta_access_token?: string | null
           meta_ad_account_id?: string | null
           meta_connected_at?: string | null
+          meta_primary_metric?: string | null
           meta_token_expires_at?: string | null
           meta_user_id?: string | null
           name: string
@@ -83,6 +85,7 @@ export type Database = {
           meta_access_token?: string | null
           meta_ad_account_id?: string | null
           meta_connected_at?: string | null
+          meta_primary_metric?: string | null
           meta_token_expires_at?: string | null
           meta_user_id?: string | null
           name?: string

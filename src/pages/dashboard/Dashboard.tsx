@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getMetricConfig, getMetricValues } from '@/lib/metaPrimaryMetrics';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -294,18 +295,23 @@ export default function Dashboard() {
             isConnected={isMetaConnected}
             isLoading={metaLoading}
             onConnect={() => navigate('/dashboard/connections')}
-            metrics={[
-              { label: 'Investimento', value: formatValue('spend', metaData?.spend), key: 'spend' },
-              { label: 'Leads', value: formatValue('leads', metaData?.leads), key: 'leads' },
-              { label: 'CPL', value: formatValue('costPerLead', metaData?.costPerLead), key: 'cpl' },
-              { label: 'CPM', value: formatValue('cpm', metaData?.cpm), key: 'cpm' },
-            ]}
+            metrics={(() => {
+              const mk = (client as any)?.meta_primary_metric || 'leads';
+              const mc = getMetricConfig(mk);
+              const mv = metaData ? getMetricValues(metaData, mk) : { value: 0, cost: 0 };
+              return [
+                { label: 'Investimento', value: formatValue('spend', metaData?.spend), key: 'spend' },
+                { label: mc.label, value: formatValue(mc.key, mv.value), key: mc.key },
+                { label: mc.costLabel, value: formatValue(mc.costKey, mv.cost), key: mc.costKey },
+                { label: 'CPM', value: formatValue('cpm', metaData?.cpm), key: 'cpm' },
+              ];
+            })()}
           />
 
           {/* Temporal chart */}
           <Card className="card-glow">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Leads por Dia</CardTitle>
+              <CardTitle className="text-sm font-medium">{getMetricConfig((client as any)?.meta_primary_metric || 'leads').label} por Dia</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-48">
