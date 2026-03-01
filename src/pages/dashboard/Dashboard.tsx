@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { getMetricConfig, getMetricValues } from "@/lib/metaPrimaryMetrics";
 import { useQuery } from "@tanstack/react-query";
@@ -186,8 +187,13 @@ export default function Dashboard() {
   // Monta parâmetros de data corretamente: preset válido OU range personalizado
   const isCustom = datePreset === "custom";
   const dateBody =
-    isCustom && customDateRange?.start && customDateRange?.end
-      ? { date_range: { start: customDateRange.start, end: customDateRange.end } }
+    isCustom && customDateRange?.from && customDateRange?.to
+      ? {
+          date_range: {
+            start: format(customDateRange.from, "yyyy-MM-dd"),
+            end: format(customDateRange.to, "yyyy-MM-dd"),
+          },
+        }
       : { date_preset: datePreset };
 
   const { data: client, isLoading: clientLoading } = useQuery({
@@ -202,7 +208,7 @@ export default function Dashboard() {
   });
 
   const { data: metaData, isLoading: metaLoading } = useQuery({
-    queryKey: ["meta-insights", clientId, datePreset, customDateRange?.start, customDateRange?.end],
+    queryKey: ["meta-insights", clientId, datePreset, customDateRange?.from, customDateRange?.to],
     queryFn: async () => {
       if (!clientId) return null;
       const { data, error } = await supabase.functions.invoke("meta-ads-insights", {
@@ -215,7 +221,7 @@ export default function Dashboard() {
   });
 
   const { data: googleData, isLoading: googleLoading } = useQuery({
-    queryKey: ["google-insights", clientId, datePreset, customDateRange?.start, customDateRange?.end],
+    queryKey: ["google-insights", clientId, datePreset, customDateRange?.from, customDateRange?.to],
     queryFn: async () => {
       if (!clientId) return null;
       const { data, error } = await supabase.functions.invoke("google-ads-insights", {
@@ -233,7 +239,7 @@ export default function Dashboard() {
 
   // Fetch GA overview data
   const { data: gaData, isLoading: gaLoading } = useQuery({
-    queryKey: ["ga-home-insights", clientId, datePreset, customDateRange?.start, customDateRange?.end],
+    queryKey: ["ga-home-insights", clientId, datePreset, customDateRange?.from, customDateRange?.to],
     queryFn: async () => {
       if (!clientId) return null;
       const dateMap: Record<string, { from: string; to: string }> = {
@@ -254,7 +260,7 @@ export default function Dashboard() {
 
   // Fetch GA source data for pie chart
   const { data: gaSourceData } = useQuery({
-    queryKey: ["ga-home-sources", clientId, datePreset, customDateRange?.start, customDateRange?.end],
+    queryKey: ["ga-home-sources", clientId, datePreset, customDateRange?.from, customDateRange?.to],
     queryFn: async () => {
       if (!clientId) return null;
       const dateMap: Record<string, { from: string; to: string }> = {
@@ -275,7 +281,7 @@ export default function Dashboard() {
 
   // ── Daily breakdown: Meta Ads ──
   const { data: metaDailyData } = useQuery({
-    queryKey: ["meta-insights-daily", clientId, datePreset, customDateRange?.start, customDateRange?.end],
+    queryKey: ["meta-insights-daily", clientId, datePreset, customDateRange?.from, customDateRange?.to],
     queryFn: async () => {
       if (!clientId) return null;
       const { data, error } = await supabase.functions.invoke("meta-ads-insights", {
@@ -290,7 +296,7 @@ export default function Dashboard() {
 
   // ── Daily breakdown: Google Ads ──
   const { data: googleDailyData } = useQuery({
-    queryKey: ["google-insights-daily", clientId, datePreset, customDateRange?.start, customDateRange?.end],
+    queryKey: ["google-insights-daily", clientId, datePreset, customDateRange?.from, customDateRange?.to],
     queryFn: async () => {
       if (!clientId) return null;
       const { data, error } = await supabase.functions.invoke("google-ads-insights", {
