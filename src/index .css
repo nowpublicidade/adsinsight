@@ -1,0 +1,378 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   SUPERNEON DESIGN SYSTEM — AdsInsight
+   Tema: Dark SaaS com estética neon/periwinkle
+   Baseado em: Superneon Webflow Template
+   ============================================================ */
+
+/* Geist Font */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap");
+
+@layer base {
+  :root {
+    /* ── Cores Base (Superneon) ── */
+    --background: 240 13% 4%;          /* #0A0A0F */
+    --foreground: 240 20% 96%;         /* #F3F3F8 */
+
+    /* Superfícies */
+    --surface: 248 29% 9%;             /* #100E1E */
+    --surface-2: 248 25% 14%;          /* #1A172E */
+
+    /* Card = surface */
+    --card: 248 29% 9%;
+    --card-foreground: 240 20% 96%;
+
+    --popover: 248 29% 9%;
+    --popover-foreground: 240 20% 96%;
+
+    /* ── Primária: Roxo vibrante ── */
+    --primary: 262 83% 58%;            /* #7C3AED */
+    --primary-foreground: 240 20% 96%;
+
+    /* ── Periwinkle: Accent secundário ── */
+    --periwinkle: 252 87% 76%;         /* #A78BFA */
+    --periwinkle-foreground: 240 13% 4%;
+
+    /* ── Neon Colors ── */
+    --neon-green: 142 100% 50%;        /* #00FF47 */
+    --neon-purple: 270 100% 68%;       /* #8B5CF6 */
+
+    /* ── Secundária ── */
+    --secondary: 248 25% 14%;
+    --secondary-foreground: 240 20% 96%;
+
+    /* ── Muted ── */
+    --muted: 248 20% 18%;
+    --muted-foreground: 240 10% 60%;
+
+    /* ── Accent ── */
+    --accent: 248 25% 18%;
+    --accent-foreground: 240 20% 96%;
+
+    /* ── Semânticas ── */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 240 20% 96%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 240 20% 96%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 240 13% 4%;
+
+    /* ── Bordas ── */
+    --border: 248 22% 18%;             /* #1E1B2E */
+    --input: 248 22% 18%;
+    --ring: 262 83% 58%;
+
+    --radius: 0.75rem;
+
+    /* ── Sidebar ── */
+    --sidebar-background: 248 29% 7%;
+    --sidebar-foreground: 240 20% 96%;
+    --sidebar-primary: 262 83% 58%;
+    --sidebar-primary-foreground: 240 20% 96%;
+    --sidebar-accent: 248 25% 14%;
+    --sidebar-accent-foreground: 240 20% 96%;
+    --sidebar-border: 248 22% 18%;
+    --sidebar-ring: 262 83% 58%;
+
+    /* ── Plataformas ── */
+    --meta: 214 89% 52%;
+    --meta-foreground: 240 20% 96%;
+    --google: 4 90% 58%;
+    --google-foreground: 240 20% 96%;
+
+    /* ── Gradientes ── */
+    --gradient-primary: linear-gradient(135deg, hsl(262 83% 58%), hsl(252 87% 76%));
+    --gradient-hero: radial-gradient(ellipse 80% 60% at 50% 0%, hsl(262 83% 58% / 0.15), transparent 70%);
+    --gradient-meta: linear-gradient(135deg, hsl(214 89% 52%), hsl(230 89% 62%));
+    --gradient-google: linear-gradient(135deg, hsl(4 90% 58%), hsl(36 100% 50%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(160 84% 39%));
+    --gradient-card: linear-gradient(145deg, hsl(248 30% 11%), hsl(248 29% 9%));
+
+    /* ── Glows ── */
+    --glow-primary: 0 0 20px hsl(262 83% 58% / 0.35), 0 0 40px hsl(262 83% 58% / 0.15);
+    --glow-primary-lg: 0 0 40px hsl(262 83% 58% / 0.5), 0 0 80px hsl(262 83% 58% / 0.2), 0 0 120px hsl(262 83% 58% / 0.1);
+    --glow-periwinkle: 0 0 20px hsl(252 87% 76% / 0.35);
+    --glow-meta: 0 0 20px hsl(214 89% 52% / 0.3);
+    --glow-google: 0 0 20px hsl(4 90% 58% / 0.3);
+
+    /* ── Sombras ── */
+    --shadow-card: 0 4px 24px hsl(240 13% 2% / 0.6);
+    --shadow-card-hover: 0 8px 40px hsl(240 13% 2% / 0.8), 0 0 0 1px hsl(248 22% 22%);
+  }
+
+  /* Dark mode é o padrão — sem overrides necessários */
+  .dark {
+    --background: 240 13% 4%;
+    --foreground: 240 20% 96%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply dark;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Geist", "Inter", system-ui, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* ── Hierarquia Tipográfica Superneon ── */
+  h1 {
+    @apply text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-tight;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl font-bold tracking-tight;
+  }
+
+  h3 {
+    @apply text-xl md:text-2xl font-semibold tracking-tight;
+  }
+
+  h4 {
+    @apply text-lg font-semibold;
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+}
+
+@layer components {
+  /* ── Glow em botões primários ── */
+  .btn-primary-glow {
+    @apply relative overflow-hidden transition-all duration-300;
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--periwinkle)));
+  }
+
+  .btn-primary-glow::before {
+    content: "";
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300 rounded-[inherit];
+    background: linear-gradient(135deg, hsl(var(--periwinkle)), hsl(var(--primary)));
+  }
+
+  .btn-primary-glow:hover::before {
+    @apply opacity-100;
+  }
+
+  .btn-primary-glow:hover {
+    box-shadow: var(--glow-primary);
+    transform: translateY(-1px);
+  }
+
+  /* ── Glow layer (3 camadas como Superneon) ── */
+  .glow-layer {
+    @apply absolute inset-0 pointer-events-none;
+    background: radial-gradient(circle at 50% 50%, hsl(var(--primary) / 0.2), transparent 60%);
+    filter: blur(20px);
+  }
+
+  /* ── Cards Superneon ── */
+  .card-superneon {
+    @apply relative rounded-xl border border-border bg-[hsl(var(--surface))] shadow-card;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+
+  .card-superneon:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-card-hover);
+    border-color: hsl(var(--border) / 1.5);
+  }
+
+  /* ── Tags e badges ── */
+  .badge-superneon {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium;
+    background: hsl(var(--surface-2));
+    color: hsl(var(--periwinkle));
+    border: 1px solid hsl(var(--periwinkle) / 0.25);
+  }
+
+  /* ── Badge de plataforma ── */
+  .badge-meta {
+    @apply bg-[hsl(214_89%_52%/0.15)] text-[hsl(214_89%_52%)] border border-[hsl(214_89%_52%/0.3)];
+  }
+
+  .badge-google {
+    @apply bg-[hsl(4_90%_58%/0.15)] text-[hsl(4_90%_58%)] border border-[hsl(4_90%_58%/0.3)];
+  }
+
+  /* ── Gradiente de texto ── */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+
+  .text-gradient-hero {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(var(--periwinkle)) 100%);
+  }
+
+  /* ── Links animados (estilo Superneon) ── */
+  .link-animated {
+    @apply relative inline-flex overflow-hidden;
+  }
+
+  .link-animated span {
+    @apply inline-block transition-transform duration-300;
+  }
+
+  .link-animated:hover span {
+    transform: translateY(-100%);
+  }
+
+  .link-animated::after {
+    content: attr(data-text);
+    @apply absolute inset-0 flex items-center translate-y-full transition-transform duration-300;
+  }
+
+  .link-animated:hover::after {
+    transform: translateY(0);
+  }
+
+  /* ── Variação positiva/negativa ── */
+  .variation-positive {
+    @apply text-[hsl(142_76%_50%)] bg-[hsl(142_76%_36%/0.15)] rounded-md px-1.5 py-0.5;
+  }
+
+  .variation-negative {
+    @apply text-destructive bg-destructive/15 rounded-md px-1.5 py-0.5;
+  }
+
+  /* ── Status de conexão ── */
+  .connection-connected {
+    @apply text-[hsl(142_76%_50%)] bg-[hsl(142_76%_36%/0.15)] border border-[hsl(142_76%_36%/0.3)];
+  }
+
+  .connection-disconnected {
+    @apply text-muted-foreground bg-muted/50 border border-border;
+  }
+
+  /* ── Navbar glass ── */
+  .navbar-glass {
+    @apply fixed top-0 left-0 right-0 z-50;
+    backdrop-filter: blur(20px) saturate(180%);
+    background: hsl(var(--background) / 0.8);
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
+  }
+
+  .navbar-glass.scrolled {
+    background: hsl(var(--background) / 0.95);
+    border-color: hsl(var(--border));
+    box-shadow: 0 4px 24px hsl(240 13% 2% / 0.4);
+  }
+
+  /* ── Scroll reveal ── */
+  .reveal {
+    @apply opacity-0;
+    transform: translateY(35px);
+    filter: blur(5px);
+  }
+
+  .reveal.revealed {
+    animation: scroll-reveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* ── Sidebar active state ── */
+  .sidebar-item-active {
+    @apply text-foreground bg-[hsl(var(--surface-2))];
+    border-right: 2px solid hsl(var(--primary));
+  }
+
+  /* ── Input dark ── */
+  .input-dark {
+    @apply bg-[hsl(var(--surface))] border-border text-foreground placeholder:text-muted-foreground;
+    @apply focus:border-primary focus:ring-1 focus:ring-primary/50;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+}
+
+@layer utilities {
+  /* ── Marquee pause on hover ── */
+  .marquee-track:hover .marquee-content {
+    animation-play-state: paused;
+  }
+
+  /* ── Gradiente de fundo hero ── */
+  .bg-hero-radial {
+    background: var(--gradient-hero);
+  }
+
+  /* ── Reduced motion ── */
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      opacity: 1;
+      transform: none;
+      filter: none;
+    }
+
+    .marquee-content {
+      animation: none;
+    }
+
+    .btn-primary-glow:hover {
+      transform: none;
+    }
+
+    .card-superneon:hover {
+      transform: none;
+    }
+  }
+
+  /* ── Glow utilities ── */
+  .animate-glow {
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+
+  .animate-marquee {
+    animation: marquee 30s linear infinite;
+  }
+
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: var(--glow-primary); }
+    50% { box-shadow: var(--glow-primary-lg); }
+  }
+
+  @keyframes scroll-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(35px);
+      filter: blur(5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+  }
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+}
