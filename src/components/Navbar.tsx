@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
@@ -33,8 +33,7 @@ export function Navbar() {
   return (
     <header
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
-        "backdrop-blur-xl",
+        "fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-xl",
         scrolled
           ? "bg-[hsl(240_13%_4%/0.95)] border-b border-border shadow-[0_4px_24px_hsl(240_13%_2%/0.4)]"
           : "bg-[hsl(240_13%_4%/0.6)] border-b border-transparent",
@@ -42,17 +41,14 @@ export function Navbar() {
     >
       <div className="container mx-auto max-w-7xl px-6">
         <div className="flex h-16 items-center justify-between">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="relative">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center transition-shadow duration-300 group-hover:shadow-glow-primary">
-                <BarChart3 className="w-4 h-4 text-white" />
-              </div>
-              <div className="absolute inset-0 rounded-lg bg-primary opacity-0 group-hover:opacity-30 blur-md transition-opacity duration-300" />
-            </div>
-            <span className="text-lg font-bold tracking-tight">
-              Ads<span className="text-gradient">Insight</span>
-            </span>
+
+          {/* ── Logo ── */}
+          <Link to="/" className="flex items-center group">
+            <img
+              src="/logo.png"
+              alt="now! insight"
+              className="h-9 w-auto object-contain transition-opacity duration-300 group-hover:opacity-85"
+            />
           </Link>
 
           {/* Desktop Nav */}
@@ -68,7 +64,7 @@ export function Navbar() {
             ))}
           </nav>
 
-          {/* CTA */}
+          {/* CTAs */}
           <div className="hidden md:flex items-center gap-3">
             <Button
               variant="ghost"
@@ -88,7 +84,7 @@ export function Navbar() {
             </Button>
           </div>
 
-          {/* Mobile menu toggle */}
+          {/* Mobile toggle */}
           <button
             className="md:hidden text-muted-foreground hover:text-foreground transition-colors"
             onClick={() => setMobileOpen(!mobileOpen)}
@@ -102,17 +98,20 @@ export function Navbar() {
       {/* Mobile Nav */}
       {mobileOpen && (
         <div className="md:hidden border-t border-border bg-[hsl(240_13%_4%/0.98)] backdrop-blur-xl">
-          <div className="container px-6 py-4 flex flex-col gap-4">
+          <div className="container px-6 py-5 flex flex-col gap-4">
+            {/* Mobile logo */}
+            <img src="/logo.png" alt="now! insight" className="h-7 w-auto object-contain self-start" />
+            <div className="h-px bg-border" />
             {navLinks.map((link) => (
               <button
                 key={link.href}
                 onClick={() => handleAnchor(link.href)}
-                className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors font-medium py-1"
+                className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors font-medium py-0.5"
               >
                 {link.label}
               </button>
             ))}
-            <div className="flex flex-col gap-2 pt-2 border-t border-border">
+            <div className="flex flex-col gap-2 pt-1 border-t border-border">
               <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
                 Entrar
               </Button>
