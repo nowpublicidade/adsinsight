@@ -219,6 +219,34 @@ export default function Dashboard() {
     enabled: !!clientId && isAnalyticsConnected,
   });
 
+  // ── Daily breakdown: Meta Ads ──
+  const { data: metaDailyData } = useQuery({
+    queryKey: ['meta-insights-daily', clientId, datePreset],
+    queryFn: async () => {
+      if (!clientId) return null;
+      const { data, error } = await supabase.functions.invoke('meta-ads-insights', {
+        body: { client_id: clientId, date_preset: datePreset, breakdown: 'daily' },
+      });
+      if (error) throw error;
+      return data?.data || null;
+    },
+    enabled: !!clientId && !!client?.meta_connected_at,
+  });
+
+  // ── Daily breakdown: Google Ads ──
+  const { data: googleDailyData } = useQuery({
+    queryKey: ['google-insights-daily', clientId, datePreset],
+    queryFn: async () => {
+      if (!clientId) return null;
+      const { data, error } = await supabase.functions.invoke('google-ads-insights', {
+        body: { client_id: clientId, date_preset: datePreset, breakdown: 'daily' },
+      });
+      if (error) throw error;
+      return data?.data || null;
+    },
+    enabled: !!clientId && !!client?.google_connected_at,
+  });
+
   if (clientLoading) {
     return (
       <DashboardLayout>
@@ -308,16 +336,37 @@ export default function Dashboard() {
             })()}
           />
 
-          {/* Temporal chart */}
+          {/* Temporal chart — Meta */}
           <Card className="card-glow">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">{getMetricConfig((client as any)?.meta_primary_metric || 'leads').label} por Dia</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-48">
-                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-                  Conecte o Meta Ads para ver dados temporais
-                </div>
+                {isMetaConnected && metaDailyData && metaDailyData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={metaDailyData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false}
+                        tickFormatter={(v) => v?.slice(5) ?? v} />
+                      <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} />
+                      <RechartsTooltip
+                        contentStyle={{ background: 'hsl(var(--surface))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      />
+                      <Bar
+                        dataKey={getMetricConfig((client as any)?.meta_primary_metric || 'leads').key}
+                        fill="hsl(var(--meta))"
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={32}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                    {isMetaConnected ? 'Sem dados para o período' : 'Conecte o Meta Ads para ver dados temporais'}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -365,16 +414,32 @@ export default function Dashboard() {
             ]}
           />
 
-          {/* Temporal chart */}
+          {/* Temporal chart — Google */}
           <Card className="card-glow">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Conversões por Dia</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-48">
-                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-                  Conecte o Google Ads para ver dados temporais
-                </div>
+                {isGoogleConnected && googleDailyData && googleDailyData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={googleDailyData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false}
+                        tickFormatter={(v) => v?.slice(5) ?? v} />
+                      <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} />
+                      <RechartsTooltip
+                        contentStyle={{ background: 'hsl(var(--surface))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      />
+                      <Bar dataKey="conversions" fill="hsl(var(--google))" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                    {isGoogleConnected ? 'Sem dados para o período' : 'Conecte o Google Ads para ver dados temporais'}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
