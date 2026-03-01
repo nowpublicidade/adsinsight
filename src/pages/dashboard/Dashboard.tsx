@@ -183,6 +183,13 @@ export default function Dashboard() {
   const { datePreset, setDatePreset, customDateRange, setCustomDateRange, isRefreshing, handleRefresh } =
     useDashboardFilters(["client", "meta-insights", "google-insights", "ga-home-insights", "ga-home-sources"]);
 
+  // Monta parâmetros de data corretamente: preset válido OU range personalizado
+  const isCustom = datePreset === "custom";
+  const dateBody =
+    isCustom && customDateRange?.start && customDateRange?.end
+      ? { date_range: { start: customDateRange.start, end: customDateRange.end } }
+      : { date_preset: datePreset };
+
   const { data: client, isLoading: clientLoading } = useQuery({
     queryKey: ["client", clientId],
     queryFn: async () => {
@@ -195,11 +202,11 @@ export default function Dashboard() {
   });
 
   const { data: metaData, isLoading: metaLoading } = useQuery({
-    queryKey: ["meta-insights", clientId, datePreset],
+    queryKey: ["meta-insights", clientId, datePreset, customDateRange?.start, customDateRange?.end],
     queryFn: async () => {
       if (!clientId) return null;
       const { data, error } = await supabase.functions.invoke("meta-ads-insights", {
-        body: { client_id: clientId, date_preset: datePreset },
+        body: { client_id: clientId, ...dateBody },
       });
       if (error) throw error;
       return data?.metrics || null;
@@ -208,11 +215,11 @@ export default function Dashboard() {
   });
 
   const { data: googleData, isLoading: googleLoading } = useQuery({
-    queryKey: ["google-insights", clientId, datePreset],
+    queryKey: ["google-insights", clientId, datePreset, customDateRange?.start, customDateRange?.end],
     queryFn: async () => {
       if (!clientId) return null;
       const { data, error } = await supabase.functions.invoke("google-ads-insights", {
-        body: { client_id: clientId, date_preset: datePreset },
+        body: { client_id: clientId, ...dateBody },
       });
       if (error) throw error;
       return data?.metrics || null;
@@ -226,7 +233,7 @@ export default function Dashboard() {
 
   // Fetch GA overview data
   const { data: gaData, isLoading: gaLoading } = useQuery({
-    queryKey: ["ga-home-insights", clientId, datePreset],
+    queryKey: ["ga-home-insights", clientId, datePreset, customDateRange?.start, customDateRange?.end],
     queryFn: async () => {
       if (!clientId) return null;
       const dateMap: Record<string, { from: string; to: string }> = {
@@ -247,7 +254,7 @@ export default function Dashboard() {
 
   // Fetch GA source data for pie chart
   const { data: gaSourceData } = useQuery({
-    queryKey: ["ga-home-sources", clientId, datePreset],
+    queryKey: ["ga-home-sources", clientId, datePreset, customDateRange?.start, customDateRange?.end],
     queryFn: async () => {
       if (!clientId) return null;
       const dateMap: Record<string, { from: string; to: string }> = {
@@ -268,11 +275,11 @@ export default function Dashboard() {
 
   // ── Daily breakdown: Meta Ads ──
   const { data: metaDailyData } = useQuery({
-    queryKey: ["meta-insights-daily", clientId, datePreset],
+    queryKey: ["meta-insights-daily", clientId, datePreset, customDateRange?.start, customDateRange?.end],
     queryFn: async () => {
       if (!clientId) return null;
       const { data, error } = await supabase.functions.invoke("meta-ads-insights", {
-        body: { client_id: clientId, date_preset: datePreset, breakdown: "daily" },
+        body: { client_id: clientId, ...dateBody, breakdown: "daily" },
       });
       if (error) throw error;
       // Normaliza date_start → date para o BarChart
@@ -283,11 +290,11 @@ export default function Dashboard() {
 
   // ── Daily breakdown: Google Ads ──
   const { data: googleDailyData } = useQuery({
-    queryKey: ["google-insights-daily", clientId, datePreset],
+    queryKey: ["google-insights-daily", clientId, datePreset, customDateRange?.start, customDateRange?.end],
     queryFn: async () => {
       if (!clientId) return null;
       const { data, error } = await supabase.functions.invoke("google-ads-insights", {
-        body: { client_id: clientId, date_preset: datePreset, breakdown: "daily" },
+        body: { client_id: clientId, ...dateBody, breakdown: "daily" },
       });
       if (error) throw error;
       return data?.daily || null;
