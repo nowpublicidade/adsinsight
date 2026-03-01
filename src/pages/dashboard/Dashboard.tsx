@@ -275,7 +275,8 @@ export default function Dashboard() {
         body: { client_id: clientId, date_preset: datePreset, breakdown: "daily" },
       });
       if (error) throw error;
-      return data?.data || null;
+      // Normaliza date_start → date para o BarChart
+      return (data?.daily || []).map((d: any) => ({ ...d, date: d.date_start }));
     },
     enabled: !!clientId && !!client?.meta_connected_at,
   });
@@ -289,7 +290,7 @@ export default function Dashboard() {
         body: { client_id: clientId, date_preset: datePreset, breakdown: "daily" },
       });
       if (error) throw error;
-      return data?.data || null;
+      return data?.daily || null;
     },
     enabled: !!clientId && !!client?.google_connected_at,
   });
