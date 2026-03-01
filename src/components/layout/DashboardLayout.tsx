@@ -17,7 +17,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-  BarChart3,
   Users,
   Settings,
   LogOut,
@@ -90,9 +89,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             )}
           >
             <item.icon className="h-[18px] w-[18px]" />
-            {/* Active indicator — linha à direita */}
+            {/* Linha ativa à direita */}
             {active && (
-              <span className="absolute -right-[1px] top-2 bottom-2 w-0.5 rounded-full bg-primary" />
+              <span className="absolute -right-[1px] top-2.5 bottom-2.5 w-[2px] rounded-full bg-primary" />
             )}
           </Link>
         </TooltipTrigger>
@@ -105,6 +104,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
+
       {/* ── Mobile header ── */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 h-14 border-b border-border backdrop-blur-xl bg-[hsl(var(--background)/0.9)]">
         <div className="flex items-center justify-between h-full px-4">
@@ -116,14 +116,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             >
               {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </Button>
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
-                <BarChart3 className="h-3.5 w-3.5 text-white" />
-              </div>
-              <span className="font-bold text-sm">
-                Ads<span className="text-gradient">Insight</span>
-              </span>
-            </div>
+            {/* Logo mobile — versão compacta */}
+            <img
+              src="/logo.png"
+              alt="now! insight"
+              className="h-7 w-auto object-contain"
+            />
           </div>
 
           <DropdownMenu>
@@ -171,14 +169,35 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        {/* Logo */}
-        <div className="h-14 flex items-center justify-center border-b border-sidebar-border shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-glow-primary">
-            <BarChart3 className="h-4 w-4 text-white" />
-          </div>
-        </div>
+        {/* Logo area — usa apenas o "n" visual do logo, com tooltip */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              to="/dashboard"
+              className="h-14 flex items-center justify-center border-b border-sidebar-border shrink-0 group"
+            >
+              {/*
+                O logo "now! insight" é landscape (largo).
+                Na sidebar de 68px usamos um recorte centrado da imagem
+                mostrando só a parte inicial — efeito "ícone de app".
+              */}
+              <div className="w-10 h-10 rounded-xl overflow-hidden bg-black flex items-center justify-center
+                              transition-shadow duration-300 group-hover:shadow-glow-primary">
+                <img
+                  src="/logo.png"
+                  alt="now!"
+                  className="h-7 w-auto object-cover object-left"
+                  style={{ maxWidth: 'none', width: '56px', objectPosition: '8px center' }}
+                />
+              </div>
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right" sideOffset={12} className="text-xs">
+            now! insight
+          </TooltipContent>
+        </Tooltip>
 
-        {/* Nav */}
+        {/* Nav items */}
         <nav className="flex-1 flex flex-col items-center py-4 gap-1.5 overflow-y-auto">
           {isAdmin ? (
             adminNavItems.map((item) => <SidebarIcon key={item.href} item={item} />)
@@ -191,7 +210,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           )}
         </nav>
 
-        {/* User */}
+        {/* User avatar */}
         <div className="pb-4 flex justify-center border-t border-sidebar-border pt-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
