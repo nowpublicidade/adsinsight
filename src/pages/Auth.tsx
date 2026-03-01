@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, BarChart3, TrendingUp, Target, Zap } from 'lucide-react';
+import { Loader2, TrendingUp, Target, Zap } from 'lucide-react';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -65,50 +65,38 @@ export default function Auth() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     clearErrors();
-
     const result = loginSchema.safeParse({ email, password });
     if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      result.error.errors.forEach(err => {
-        if (err.path[0]) fieldErrors[err.path[0] as string] = err.message;
-      });
-      setErrors(fieldErrors);
+      const fe: Record<string, string> = {};
+      result.error.errors.forEach(err => { if (err.path[0]) fe[err.path[0] as string] = err.message; });
+      setErrors(fe);
       return;
     }
-
     setIsLoading(true);
     const { error } = await signIn(email, password);
     setIsLoading(false);
-
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        toast.error('Email ou senha incorretos');
-      } else if (error.message.includes('Email not confirmed')) {
-        toast.error('Confirme seu email antes de fazer login');
-      } else {
-        toast.error(error.message);
-      }
+      toast.error(
+        error.message.includes('Invalid login credentials') ? 'Email ou senha incorretos'
+          : error.message.includes('Email not confirmed') ? 'Confirme seu email antes de fazer login'
+            : error.message,
+      );
     }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     clearErrors();
-
     const result = signupSchema.safeParse({ fullName, email, password, confirmPassword });
     if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      result.error.errors.forEach(err => {
-        if (err.path[0]) fieldErrors[err.path[0] as string] = err.message;
-      });
-      setErrors(fieldErrors);
+      const fe: Record<string, string> = {};
+      result.error.errors.forEach(err => { if (err.path[0]) fe[err.path[0] as string] = err.message; });
+      setErrors(fe);
       return;
     }
-
     setIsLoading(true);
     const { error } = await signUp(email, password, fullName);
     setIsLoading(false);
-
     if (error) {
       toast.error(error.message.includes('already registered') ? 'Este email já está cadastrado' : error.message);
     } else {
@@ -127,6 +115,7 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen flex bg-background">
+
       {/* ── Esquerda: Branding ── */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-center items-center p-16 relative overflow-hidden">
         {/* Gradientes decorativos */}
@@ -149,13 +138,12 @@ export default function Auth() {
 
         <div className="relative z-10 w-full max-w-sm">
           {/* Logo */}
-          <div className="flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-glow-primary">
-              <BarChart3 className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-2xl font-bold">
-              Ads<span className="text-gradient">Insight</span>
-            </span>
+          <div className="mb-12">
+            <img
+              src="/logo.png"
+              alt="now! insight"
+              className="h-12 w-auto object-contain"
+            />
           </div>
 
           {/* Headline */}
@@ -169,7 +157,7 @@ export default function Auth() {
             </p>
           </div>
 
-          {/* Feature list */}
+          {/* Features */}
           <div className="space-y-4">
             {features.map(({ icon: Icon, title, description }) => (
               <div
@@ -200,7 +188,7 @@ export default function Auth() {
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              <span className="text-foreground font-semibold">+200 gestores</span> já usam o AdsInsight
+              <span className="text-foreground font-semibold">+200 gestores</span> já usam o now! insight
             </p>
           </div>
         </div>
@@ -208,7 +196,6 @@ export default function Auth() {
 
       {/* ── Direita: Formulário ── */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 relative">
-        {/* Glow sutil no fundo */}
         <div
           className="absolute inset-0 pointer-events-none lg:hidden"
           style={{
@@ -218,18 +205,12 @@ export default function Auth() {
 
         <div className="w-full max-w-md relative">
           {/* Mobile logo */}
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <BarChart3 className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-xl font-bold">
-              Ads<span className="text-gradient">Insight</span>
-            </span>
+          <div className="mb-8 lg:hidden">
+            <img src="/logo.png" alt="now! insight" className="h-9 w-auto object-contain" />
           </div>
 
           {/* Card */}
           <div className="rounded-2xl border border-border bg-[hsl(var(--surface))] p-8 shadow-card">
-            {/* Header */}
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-foreground mb-1.5">
                 {isLogin ? 'Bem-vindo de volta' : 'Criar conta'}
@@ -241,18 +222,15 @@ export default function Auth() {
               </p>
             </div>
 
-            {/* Form */}
+            {/* ── Login Form ── */}
             {isLogin ? (
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email" className="text-sm font-medium text-foreground">
-                    Email
-                  </Label>
+                  <Label htmlFor="login-email" className="text-sm font-medium text-foreground">Email</Label>
                   <Input
                     id="login-email"
                     type="email"
                     placeholder="seu@email.com"
-                    className="bg-[hsl(var(--surface-2))] border-border focus-visible:ring-primary/50 focus-visible:border-primary/60"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="email"
@@ -262,10 +240,8 @@ export default function Auth() {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="login-password" className="text-sm font-medium text-foreground">
-                      Senha
-                    </Label>
-                    <button type="button" className="text-xs text-[hsl(var(--periwinkle))] hover:text-[hsl(var(--periwinkle)/0.8)] transition-colors">
+                    <Label htmlFor="login-password" className="text-sm font-medium text-foreground">Senha</Label>
+                    <button type="button" className="text-xs text-[hsl(var(--periwinkle))] hover:opacity-80 transition-opacity">
                       Esqueceu a senha?
                     </button>
                   </div>
@@ -273,7 +249,6 @@ export default function Auth() {
                     id="login-password"
                     type="password"
                     placeholder="••••••••"
-                    className="bg-[hsl(var(--surface-2))] border-border focus-visible:ring-primary/50 focus-visible:border-primary/60"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
@@ -282,83 +257,35 @@ export default function Auth() {
                 </div>
 
                 <Button type="submit" variant="glow" size="lg" className="w-full mt-2" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Entrando...
-                    </>
-                  ) : (
-                    'Entrar'
-                  )}
+                  {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entrando...</> : 'Entrar'}
                 </Button>
               </form>
+
             ) : (
+              /* ── Signup Form ── */
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signup-fullname" className="text-sm font-medium">Nome completo</Label>
-                  <Input
-                    id="signup-fullname"
-                    type="text"
-                    placeholder="Seu nome"
-                    className="bg-[hsl(var(--surface-2))] border-border focus-visible:ring-primary/50 focus-visible:border-primary/60"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    autoComplete="name"
-                  />
+                  <Input id="signup-fullname" type="text" placeholder="Seu nome" value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" />
                   {errors.fullName && <p className="text-xs text-destructive">{errors.fullName}</p>}
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="signup-email" className="text-sm font-medium">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    className="bg-[hsl(var(--surface-2))] border-border focus-visible:ring-primary/50 focus-visible:border-primary/60"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                  />
+                  <Input id="signup-email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
                   {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="signup-password" className="text-sm font-medium">Senha</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    className="bg-[hsl(var(--surface-2))] border-border focus-visible:ring-primary/50 focus-visible:border-primary/60"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="new-password"
-                  />
+                  <Input id="signup-password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
                   {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="signup-confirm" className="text-sm font-medium">Confirmar senha</Label>
-                  <Input
-                    id="signup-confirm"
-                    type="password"
-                    placeholder="••••••••"
-                    className="bg-[hsl(var(--surface-2))] border-border focus-visible:ring-primary/50 focus-visible:border-primary/60"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    autoComplete="new-password"
-                  />
+                  <Input id="signup-confirm" type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" />
                   {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword}</p>}
                 </div>
-
                 <Button type="submit" variant="glow" size="lg" className="w-full mt-2" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Criando conta...
-                    </>
-                  ) : (
-                    'Criar conta grátis'
-                  )}
+                  {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Criando conta...</> : 'Criar conta grátis'}
                 </Button>
               </form>
             )}
@@ -370,7 +297,7 @@ export default function Auth() {
                 <button
                   type="button"
                   onClick={() => { setIsLogin(!isLogin); clearErrors(); }}
-                  className="text-[hsl(var(--periwinkle))] hover:text-[hsl(var(--periwinkle)/0.85)] font-medium transition-colors"
+                  className="text-[hsl(var(--periwinkle))] hover:opacity-80 font-medium transition-opacity"
                 >
                   {isLogin ? 'Cadastre-se grátis' : 'Fazer login'}
                 </button>
@@ -378,12 +305,11 @@ export default function Auth() {
             </div>
           </div>
 
-          {/* Legal */}
-          <p className="text-center text-xs text-muted-foreground mt-6">
+          <p className="text-center text-xs text-muted-foreground mt-5">
             Ao continuar, você concorda com nossos{' '}
-            <a href="#" className="hover:text-foreground transition-colors underline underline-offset-2">Termos de Uso</a>
+            <a href="#" className="hover:text-foreground underline underline-offset-2 transition-colors">Termos</a>
             {' '}e{' '}
-            <a href="#" className="hover:text-foreground transition-colors underline underline-offset-2">Privacidade</a>.
+            <a href="#" className="hover:text-foreground underline underline-offset-2 transition-colors">Privacidade</a>.
           </p>
         </div>
       </div>
