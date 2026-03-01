@@ -169,30 +169,26 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        {/* Logo area — usa apenas o "n" visual do logo, com tooltip */}
+        {/* Logo area — badge tipográfico "n!" baseado na identidade do logo */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Link
               to="/dashboard"
               className="h-14 flex items-center justify-center border-b border-sidebar-border shrink-0 group"
             >
-              {/*
-                O logo "now! insight" é landscape (largo).
-                Na sidebar de 68px usamos um recorte centrado da imagem
-                mostrando só a parte inicial — efeito "ícone de app".
-              */}
-              <div className="w-10 h-10 rounded-xl overflow-hidden bg-black flex items-center justify-center
-                              transition-shadow duration-300 group-hover:shadow-glow-primary">
-                <img
-                  src="/logo.png"
-                  alt="now!"
-                  className="h-7 w-auto object-cover object-left"
-                  style={{ maxWidth: 'none', width: '56px', objectPosition: '8px center' }}
-                />
+              <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center
+                              transition-shadow duration-300 group-hover:shadow-glow-primary select-none"
+                style={{ border: '1px solid hsl(var(--border))' }}
+              >
+                {/* "n" em branco + "!" em roxo — replicando a paleta do logo */}
+                <span className="text-[17px] font-black leading-none tracking-tighter">
+                  <span style={{ color: '#ffffff', fontFamily: 'Geist, Inter, system-ui' }}>n</span>
+                  <span style={{ color: 'hsl(var(--primary))' }}>!</span>
+                </span>
               </div>
             </Link>
           </TooltipTrigger>
-          <TooltipContent side="right" sideOffset={12} className="text-xs">
+          <TooltipContent side="right" sideOffset={12} className="text-xs font-medium">
             now! insight
           </TooltipContent>
         </Tooltip>
