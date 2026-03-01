@@ -1,0 +1,1 @@
+ALTER TABLE public.clients ADD COLUMN meta_primary_metric text DEFAULT 'leads';

@@ -55,9 +55,11 @@ const tabs = [
   { value: 'demographics', label: 'Demográfico' },
 ];
 
+import { getMetricConfig, getMetricValues } from '@/lib/metaPrimaryMetrics';
+
 const formatValue = (key: string, value: number | undefined): string => {
   if (value === undefined || value === null) return '—';
-  const currencyMetrics = ['spend', 'cost', 'cpc', 'cpm', 'costPerLead', 'costPerPurchase', 'costPerPixelLead'];
+  const currencyMetrics = ['spend', 'cost', 'cpc', 'cpm', 'costPerLead', 'costPerPurchase', 'costPerPixelLead', 'costPerFormLead', 'costPerResult', 'costPerMessage', 'costPerRegistration', 'costPerAddToCart', 'costPerCheckout', 'costPerLinkClick', 'costPerViewContent'];
   const percentMetrics = ['ctr'];
   if (currencyMetrics.includes(key)) return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   if (percentMetrics.includes(key)) return `${value.toFixed(2)}%`;
@@ -254,19 +256,27 @@ export default function MetaAds() {
   const paginatedAds = adsData ? (adsData as any[]).slice(adPage * pageSize, (adPage + 1) * pageSize) : [];
   const totalAdPages = adsData ? Math.ceil((adsData as any[]).length / pageSize) : 0;
 
+  // Get primary metric config
+  const primaryMetricKey = (client as any)?.meta_primary_metric || 'leads';
+  const metricCfg = getMetricConfig(primaryMetricKey);
+  const metricVal = metrics ? getMetricValues(metrics, primaryMetricKey) : { value: 0, cost: 0 };
+
   // Funnel data
   const funnelData = metrics ? [
     { label: 'Impressões', value: metrics.impressions || 0 },
     { label: 'Cliques', value: metrics.linkClicks || metrics.clicks || 0 },
-    { label: 'Leads', value: metrics.leads || 0 },
+    { label: metricCfg.label, value: metricVal.value },
   ] : [];
 
   // Daily chart data
-  const dailyChartData = dailyData ? (dailyData as any[]).map((d: any) => ({
-    date: new Date(d.date_start).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-    impressions: d.impressions,
-    leads: d.leads,
-  })) : [];
+  const dailyChartData = dailyData ? (dailyData as any[]).map((d: any) => {
+    const dayMetric = getMetricValues(d, primaryMetricKey);
+    return {
+      date: new Date(d.date_start).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      impressions: d.impressions,
+      metric: dayMetric.value,
+    };
+  }) : [];
 
   if (!isConnected) {
     return (
@@ -294,8 +304,8 @@ export default function MetaAds() {
           {/* KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <KpiCard label="Investimento" value={formatValue('spend', metrics?.spend)} icon={<DollarSign className="h-4 w-4" />} isLoading={metricsLoading} />
-            <KpiCard label="Total de Leads" value={formatValue('leads', metrics?.leads)} icon={<Users className="h-4 w-4" />} isLoading={metricsLoading} />
-            <KpiCard label="Custo por Lead" value={formatValue('costPerLead', metrics?.costPerLead)} icon={<DollarSign className="h-4 w-4" />} isLoading={metricsLoading} />
+            <KpiCard label={`Total de ${metricCfg.label}`} value={formatValue(metricCfg.key, metricVal.value)} icon={<Users className="h-4 w-4" />} isLoading={metricsLoading} />
+            <KpiCard label={metricCfg.costLabel} value={formatValue(metricCfg.costKey, metricVal.cost)} icon={<DollarSign className="h-4 w-4" />} isLoading={metricsLoading} />
             <KpiCard label="Impressões" value={formatValue('impressions', metrics?.impressions)} icon={<Eye className="h-4 w-4" />} isLoading={metricsLoading} />
             <KpiCard label="CPC" value={formatValue('cpc', metrics?.cpc)} icon={<MousePointer className="h-4 w-4" />} isLoading={metricsLoading} />
             <KpiCard label="CPM" value={formatValue('cpm', metrics?.cpm)} icon={<DollarSign className="h-4 w-4" />} isLoading={metricsLoading} />
@@ -318,8 +328,8 @@ export default function MetaAds() {
                         <TableRow>
                           <TableHead>Campanha</TableHead>
                           <TableHead className="text-right">Investimento</TableHead>
-                          <TableHead className="text-right">Leads</TableHead>
-                          <TableHead className="text-right">CPL</TableHead>
+                          <TableHead className="text-right">{metricCfg.label}</TableHead>
+                          <TableHead className="text-right">{metricCfg.costLabel}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -327,8 +337,8 @@ export default function MetaAds() {
                           <TableRow key={c.campaign_id}>
                             <TableCell className="font-medium max-w-[200px] truncate">{c.campaign_name}</TableCell>
                             <TableCell className="text-right">{formatValue('spend', c.spend)}</TableCell>
-                            <TableCell className="text-right">{c.leads}</TableCell>
-                            <TableCell className="text-right">{formatValue('costPerLead', c.costPerLead)}</TableCell>
+                            <TableCell className="text-right">{getMetricValues(c, primaryMetricKey).value}</TableCell>
+                            <TableCell className="text-right">{formatValue(metricCfg.costKey, getMetricValues(c, primaryMetricKey).cost)}</TableCell>
                           </TableRow>
                         ))}
                         {paginatedCampaigns.length === 0 && (
@@ -385,7 +395,7 @@ export default function MetaAds() {
                       <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
                       <RechartsTooltip contentStyle={{ background: 'hsl(222, 47%, 10%)', border: '1px solid hsl(222, 47%, 16%)', borderRadius: '8px' }} />
                       <Line yAxisId="left" type="monotone" dataKey="impressions" stroke="hsl(214, 89%, 52%)" name="Impressões" strokeWidth={2} dot={false} />
-                      <Line yAxisId="right" type="monotone" dataKey="leads" stroke="hsl(142, 76%, 36%)" name="Leads" strokeWidth={2} dot={false} />
+                      <Line yAxisId="right" type="monotone" dataKey="metric" stroke="hsl(142, 76%, 36%)" name={metricCfg.label} strokeWidth={2} dot={false} />
                       <Legend wrapperStyle={{ fontSize: '12px' }} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -406,8 +416,8 @@ export default function MetaAds() {
           {/* KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <KpiCard label="CTR" value={formatValue('ctr', metrics?.ctr)} icon={<BarChart3 className="h-4 w-4" />} isLoading={metricsLoading} />
-            <KpiCard label="Total de Leads" value={formatValue('leads', metrics?.leads)} icon={<Users className="h-4 w-4" />} isLoading={metricsLoading} />
-            <KpiCard label="CPL" value={formatValue('costPerLead', metrics?.costPerLead)} icon={<DollarSign className="h-4 w-4" />} isLoading={metricsLoading} />
+            <KpiCard label={`Total de ${metricCfg.label}`} value={formatValue(metricCfg.key, metricVal.value)} icon={<Users className="h-4 w-4" />} isLoading={metricsLoading} />
+            <KpiCard label={metricCfg.costLabel} value={formatValue(metricCfg.costKey, metricVal.cost)} icon={<DollarSign className="h-4 w-4" />} isLoading={metricsLoading} />
             <KpiCard label="Impressões" value={formatValue('impressions', metrics?.impressions)} icon={<Eye className="h-4 w-4" />} isLoading={metricsLoading} />
             <KpiCard label="CPC" value={formatValue('cpc', metrics?.cpc)} icon={<MousePointer className="h-4 w-4" />} isLoading={metricsLoading} />
             <KpiCard label="CPM" value={formatValue('cpm', metrics?.cpm)} icon={<DollarSign className="h-4 w-4" />} isLoading={metricsLoading} />
@@ -429,8 +439,8 @@ export default function MetaAds() {
                         <TableHead>Campanha</TableHead>
                         <TableHead>Prévia</TableHead>
                         <TableHead>Anúncio</TableHead>
-                        <TableHead className="text-right">Leads</TableHead>
-                        <TableHead className="text-right">CPL</TableHead>
+                        <TableHead className="text-right">{metricCfg.label}</TableHead>
+                        <TableHead className="text-right">{metricCfg.costLabel}</TableHead>
                         <TableHead className="text-right">CTR</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -452,8 +462,8 @@ export default function MetaAds() {
                             )}
                           </TableCell>
                           <TableCell className="font-medium max-w-[180px] truncate">{ad.ad_name}</TableCell>
-                          <TableCell className="text-right">{ad.leads}</TableCell>
-                          <TableCell className="text-right">{formatValue('costPerLead', ad.costPerLead)}</TableCell>
+                          <TableCell className="text-right">{getMetricValues(ad, primaryMetricKey).value}</TableCell>
+                          <TableCell className="text-right">{formatValue(metricCfg.costKey, getMetricValues(ad, primaryMetricKey).cost)}</TableCell>
                           <TableCell className="text-right">{formatValue('ctr', ad.ctr)}</TableCell>
                         </TableRow>
                       ))}

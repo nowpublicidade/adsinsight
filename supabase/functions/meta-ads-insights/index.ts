@@ -94,6 +94,13 @@ serve(async (req) => {
       const viewContent = getActionValue(rawData.actions, 'view_content', 'offsite_conversion.fb_pixel_view_content', 'omni_view_content');
       const completeRegistration = getActionValue(rawData.actions, 'complete_registration', 'offsite_conversion.fb_pixel_complete_registration', 'omni_complete_registration');
       const linkClicks = getActionValue(rawData.actions, 'link_click');
+      const formLeads = getActionValue(rawData.actions, 'leadgen_grouped', 'onsite_conversion.lead_grouped');
+      
+      // Results: sum all values from 'conversions' array (campaign objective results)
+      let results = 0;
+      if (rawData.conversions && Array.isArray(rawData.conversions)) {
+        results = rawData.conversions.reduce((sum: number, c: any) => sum + parseFloat(c.value || 0), 0);
+      }
 
       return {
         spend,
@@ -121,6 +128,13 @@ serve(async (req) => {
         completeRegistration,
         costPerRegistration: completeRegistration > 0 ? spend / completeRegistration : 0,
         linkClicks,
+        costPerLinkClick: linkClicks > 0 ? spend / linkClicks : 0,
+        costPerViewContent: viewContent > 0 ? spend / viewContent : 0,
+        costPerMessage: messageLeads > 0 ? spend / messageLeads : 0,
+        formLeads,
+        costPerFormLead: formLeads > 0 ? spend / formLeads : 0,
+        results,
+        costPerResult: results > 0 ? spend / results : 0,
       };
     };
 
