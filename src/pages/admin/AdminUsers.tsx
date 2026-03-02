@@ -88,7 +88,7 @@ export default function AdminUsers() {
       if (profilesError) throw profilesError;
 
       const { data: roles } = await supabase.from("user_roles").select("*");
-      const { data: accesses } = await supabase.from("user_client_access").select("user_id, client_id");
+      const { data: accesses } = await (supabase as any).from("user_client_access").select("user_id, client_id");
       const { data: allClients } = await supabase.from("clients").select("*");
 
       return profiles.map((profile) => ({
@@ -141,7 +141,7 @@ export default function AdminUsers() {
 
         // Vínculos com contas
         if (clientIds.length > 0) {
-          await supabase
+          await (supabase as any)
             .from("user_client_access")
             .insert(clientIds.map((cid) => ({ user_id: data.user!.id, client_id: cid })));
         }
@@ -171,11 +171,11 @@ export default function AdminUsers() {
   const updateAccessMutation = useMutation({
     mutationFn: async ({ userId, clientIds }: { userId: string; clientIds: string[] }) => {
       // Remove todos os vínculos atuais
-      await supabase.from("user_client_access").delete().eq("user_id", userId);
+      await (supabase as any).from("user_client_access").delete().eq("user_id", userId);
 
       // Insere os novos
       if (clientIds.length > 0) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("user_client_access")
           .insert(clientIds.map((cid) => ({ user_id: userId, client_id: cid })));
         if (error) throw error;
