@@ -9,38 +9,58 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Loader2, Users, UserPlus, Building2, Shield, User } from "lucide-react";
-import type { Database } from "@/integrations/supabase/types";
 
-type UserProfile = Database["public"]["Tables"]["user_profiles"]["Row"];
-type UserRole = Database["public"]["Tables"]["user_roles"]["Row"];
-type Client = Database["public"]["Tables"]["clients"]["Row"];
+// Tipos locais simples — sem depender dos tipos gerados para user_client_access
+interface UserProfile {
+  id: string;
+  user_id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  whatsapp: string | null;
+  client_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface UserRole {
+  id: string;
+  user_id: string;
+  role: "admin" | "client";
+  created_at: string;
+}
+
+interface ClientAccess {
+  user_id: string;
+  client_id: string;
+}
+
+interface ClientInfo {
+  id: string;
+  name: string;
+}
 
 interface UserWithDetails extends UserProfile {
   user_roles: UserRole[];
-  client_accesses: { client_id: string }[];
-  clients_list: Client[];
+  client_accesses: ClientAccess[];
+  clients_list: ClientInfo[];
 }
 
-// ── Componente de multi-select de clientes ──────────────────────────────────
+// ── Multi-select de clientes ─────────────────────────────────────────────────
 function ClientMultiSelect({
   clients,
   selected,
   onChange,
 }: {
-  clients: { id: string; name: string }[];
+  clients: ClientInfo[];
   selected: string[];
   onChange: (ids: string[]) => void;
 }) {
   const toggle = (id: string) => {
-    if (selected.includes(id)) {
-      onChange(selected.filter((s) => s !== id));
-    } else {
-      onChange([...selected, id]);
-    }
+    onChange(selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id]);
   };
 
   return (
@@ -59,7 +79,10 @@ function ClientMultiSelect({
   );
 }
 
-// ── Página principal ────────────────────────────────────────────────────────
+// Helper para queries na tabela ainda não tipada
+const db = supabase as any;
+
+// ── Página principal ─────────────────────────────────────────────────────────
 export default function AdminUsers() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -67,7 +90,6 @@ export default function AdminUsers() {
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
   const [selectedRole, setSelectedRole] = useState<"admin" | "client">("client");
 
-  // Novo usuário
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserName, setNewUserName] = useState("");
@@ -80,40 +102,43 @@ export default function AdminUsers() {
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["admin-users"],
-    queryFn: async () => {
-      const { data: profiles, error: profilesError } = await supabase
-        .from("user_profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (profilesError) throw profilesError;
+    queryFn: async (): Promise<UserWithDetails[]> => {
+      const [{ data: profiles }, { data: roles }, { data: accesses }, { data: allClients }] = await Promise.all([
+        supabase.from("user_profiles").select("*").order("created_at", { ascending: false }),
+        supabase.from("user_roles").select("*"),
+        db.from("user_client_access").select("user_id, client_id"),
+        supabase.from("clients").select("id, name"),
+      ]);
 
-      const { data: roles } = await supabase.from("user_roles").select("*");
-      const { data: accesses } = await (supabase as any).from("user_client_access").select("user_id, client_id");
-      const { data: allClients } = await supabase.from("clients").select("*");
+      const profileList = (profiles ?? []) as UserProfile[];
+      const roleList = (roles ?? []) as UserRole[];
+      const accessList = (accesses ?? []) as ClientAccess[];
+      const clientList = (allClients ?? []) as ClientInfo[];
 
-      return profiles.map((profile) => ({
-        ...profile,
-        user_roles: (roles ?? []).filter((r) => r.user_id === profile.user_id),
-        client_accesses: (accesses ?? []).filter((a) => a.user_id === profile.user_id),
-        clients_list: (allClients ?? []).filter((c) =>
-          (accesses ?? []).some((a) => a.user_id === profile.user_id && a.client_id === c.id),
-        ),
-      })) as UserWithDetails[];
+      return profileList.map((profile) => {
+        const userAccesses = accessList.filter((a) => a.user_id === profile.user_id);
+        const accessClientIds = userAccesses.map((a) => a.client_id);
+        return {
+          ...profile,
+          user_roles: roleList.filter((r) => r.user_id === profile.user_id),
+          client_accesses: userAccesses,
+          clients_list: clientList.filter((c) => accessClientIds.includes(c.id)),
+        };
+      });
     },
   });
 
   const { data: clients } = useQuery({
     queryKey: ["clients-list"],
-    queryFn: async () => {
+    queryFn: async (): Promise<ClientInfo[]> => {
       const { data, error } = await supabase.from("clients").select("id, name").order("name");
       if (error) throw error;
-      return data;
+      return (data ?? []) as ClientInfo[];
     },
   });
 
   // ── Mutations ────────────────────────────────────────────────────────────
 
-  /** Cria usuário e vincula às contas selecionadas */
   const createUserMutation = useMutation({
     mutationFn: async ({
       email,
@@ -136,17 +161,14 @@ export default function AdminUsers() {
       if (error) throw error;
 
       if (data.user) {
-        // Aguarda o trigger criar o perfil
         await new Promise((resolve) => setTimeout(resolve, 1200));
 
-        // Vínculos com contas
         if (clientIds.length > 0) {
-          await (supabase as any)
+          await db
             .from("user_client_access")
-            .insert(clientIds.map((cid) => ({ user_id: data.user!.id, client_id: cid })));
+            .insert(clientIds.map((cid: string) => ({ user_id: data.user!.id, client_id: cid })));
         }
 
-        // Role
         if (role !== "client") {
           await supabase.from("user_roles").delete().eq("user_id", data.user.id);
           await supabase.from("user_roles").insert({ user_id: data.user.id, role });
@@ -164,20 +186,16 @@ export default function AdminUsers() {
       setNewUserClientIds([]);
       setNewUserRole("client");
     },
-    onError: (error) => toast.error("Erro ao criar usuário: " + error.message),
+    onError: (error: Error) => toast.error("Erro ao criar usuário: " + error.message),
   });
 
-  /** Atualiza vínculos de conta de um usuário existente (substitui todos) */
   const updateAccessMutation = useMutation({
     mutationFn: async ({ userId, clientIds }: { userId: string; clientIds: string[] }) => {
-      // Remove todos os vínculos atuais
-      await (supabase as any).from("user_client_access").delete().eq("user_id", userId);
-
-      // Insere os novos
+      await db.from("user_client_access").delete().eq("user_id", userId);
       if (clientIds.length > 0) {
-        const { error } = await (supabase as any)
+        const { error } = await db
           .from("user_client_access")
-          .insert(clientIds.map((cid) => ({ user_id: userId, client_id: cid })));
+          .insert(clientIds.map((cid: string) => ({ user_id: userId, client_id: cid })));
         if (error) throw error;
       }
     },
@@ -187,7 +205,7 @@ export default function AdminUsers() {
       setIsEditOpen(false);
       setSelectedUserId(null);
     },
-    onError: (error) => toast.error("Erro ao atualizar usuário: " + error.message),
+    onError: (error: Error) => toast.error("Erro ao atualizar usuário: " + error.message),
   });
 
   const updateRoleMutation = useMutation({
@@ -197,7 +215,7 @@ export default function AdminUsers() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
-    onError: (error) => toast.error("Erro ao atualizar role: " + error.message),
+    onError: (error: Error) => toast.error("Erro ao atualizar role: " + error.message),
   });
 
   // ── Handlers ─────────────────────────────────────────────────────────────
@@ -226,7 +244,6 @@ export default function AdminUsers() {
   const handleSave = () => {
     if (!selectedUserId) return;
     updateAccessMutation.mutate({ userId: selectedUserId, clientIds: selectedClientIds });
-
     const currentRole = users?.find((u) => u.user_id === selectedUserId)?.user_roles[0]?.role;
     if (currentRole !== selectedRole) {
       updateRoleMutation.mutate({ userId: selectedUserId, role: selectedRole });
@@ -238,13 +255,15 @@ export default function AdminUsers() {
     if (role === "admin") {
       return (
         <Badge className="bg-primary/20 text-primary border-primary/30">
-          <Shield className="h-3 w-3 mr-1" /> Admin
+          <Shield className="h-3 w-3 mr-1" />
+          Admin
         </Badge>
       );
     }
     return (
       <Badge variant="secondary">
-        <User className="h-3 w-3 mr-1" /> Cliente
+        <User className="h-3 w-3 mr-1" />
+        Cliente
       </Badge>
     );
   };
@@ -353,7 +372,7 @@ export default function AdminUsers() {
           </CardContent>
         </Card>
 
-        {/* ── Dialog Criar Usuário ── */}
+        {/* Dialog Criar */}
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -424,7 +443,7 @@ export default function AdminUsers() {
           </DialogContent>
         </Dialog>
 
-        {/* ── Dialog Editar Usuário ── */}
+        {/* Dialog Editar */}
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
