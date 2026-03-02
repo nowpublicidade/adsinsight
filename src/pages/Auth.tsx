@@ -1,45 +1,43 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { Loader2, TrendingUp, Target, Zap } from "lucide-react";
-import { z } from "zod";
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { Loader2, TrendingUp, Target, Zap } from 'lucide-react';
+import { z } from 'zod';
 
 const loginSchema = z.object({
-  email: z.string().email("Email inválido"),
-  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  email: z.string().email('Email inválido'),
+  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
 });
 
-const signupSchema = z
-  .object({
-    fullName: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
-    email: z.string().email("Email inválido"),
-    password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
-    confirmPassword: z.string().min(6, "Confirme sua senha"),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Senhas não coincidem",
-    path: ["confirmPassword"],
-  });
+const signupSchema = z.object({
+  fullName: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  email: z.string().email('Email inválido'),
+  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
+  confirmPassword: z.string().min(6, 'Confirme sua senha'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: 'Senhas não coincidem',
+  path: ['confirmPassword'],
+});
 
 const features = [
   {
     icon: TrendingUp,
-    title: "Métricas em tempo real",
-    description: "Meta Ads e Google Ads em um único dashboard",
+    title: 'Métricas em tempo real',
+    description: 'Meta Ads e Google Ads em um único dashboard',
   },
   {
     icon: Target,
-    title: "ROAS e Conversões",
-    description: "Todas as métricas do Pixel, compras e add to cart",
+    title: 'ROAS e Conversões',
+    description: 'Todas as métricas do Pixel, compras e add to cart',
   },
   {
     icon: Zap,
-    title: "Relatórios automáticos",
-    description: "Dashboards personalizados para seus clientes",
+    title: 'Relatórios automáticos',
+    description: 'Dashboards personalizados para seus clientes',
   },
 ];
 
@@ -48,10 +46,10 @@ export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const { signIn, signUp, user, role, availableClients, clientId, loading } = useAuth();
   const navigate = useNavigate();
@@ -59,20 +57,20 @@ export default function Auth() {
   useEffect(() => {
     if (loading || !user || !role) return;
 
-    if (role === "admin") {
-      navigate("/admin", { replace: true });
+    if (role === 'admin') {
+      navigate('/admin', { replace: true });
       return;
     }
 
     // Cliente com conta já selecionada (ex: só tem 1 conta)
     if (clientId) {
-      navigate("/dashboard", { replace: true });
+      navigate('/dashboard', { replace: true });
       return;
     }
 
     // Cliente ainda sem conta selecionada → tela de seleção
     if (availableClients.length > 0) {
-      navigate("/account-select", { replace: true });
+      navigate('/account-select', { replace: true });
     }
   }, [user, role, clientId, availableClients, loading, navigate]);
 
@@ -84,9 +82,7 @@ export default function Auth() {
     const result = loginSchema.safeParse({ email, password });
     if (!result.success) {
       const fe: Record<string, string> = {};
-      result.error.errors.forEach((err) => {
-        if (err.path[0]) fe[err.path[0] as string] = err.message;
-      });
+      result.error.errors.forEach(err => { if (err.path[0]) fe[err.path[0] as string] = err.message; });
       setErrors(fe);
       return;
     }
@@ -95,11 +91,11 @@ export default function Auth() {
     setIsLoading(false);
     if (error) {
       toast.error(
-        error.message.includes("Invalid login credentials")
-          ? "Email ou senha incorretos"
-          : error.message.includes("Email not confirmed")
-            ? "Confirme seu email antes de entrar"
-            : "Erro ao fazer login. Tente novamente.",
+        error.message.includes('Invalid login credentials')
+          ? 'Email ou senha incorretos'
+          : error.message.includes('Email not confirmed')
+          ? 'Confirme seu email antes de entrar'
+          : 'Erro ao fazer login. Tente novamente.'
       );
     }
   };
@@ -110,9 +106,7 @@ export default function Auth() {
     const result = signupSchema.safeParse({ fullName, email, password, confirmPassword });
     if (!result.success) {
       const fe: Record<string, string> = {};
-      result.error.errors.forEach((err) => {
-        if (err.path[0]) fe[err.path[0] as string] = err.message;
-      });
+      result.error.errors.forEach(err => { if (err.path[0]) fe[err.path[0] as string] = err.message; });
       setErrors(fe);
       return;
     }
@@ -120,9 +114,9 @@ export default function Auth() {
     const { error } = await signUp(email, password, fullName);
     setIsLoading(false);
     if (error) {
-      toast.error("Erro ao criar conta: " + error.message);
+      toast.error('Erro ao criar conta: ' + error.message);
     } else {
-      toast.success("Conta criada! Verifique seu email para confirmar.");
+      toast.success('Conta criada! Verifique seu email para confirmar.');
     }
   };
 
@@ -133,14 +127,16 @@ export default function Auth() {
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: "radial-gradient(ellipse 80% 60% at 30% 50%, hsl(262 83% 58% / 0.12), transparent 70%)",
+            background:
+              'radial-gradient(ellipse 80% 60% at 30% 50%, hsl(262 83% 58% / 0.12), transparent 70%)',
           }}
         />
         <div className="relative">
           <img src="/logo.png" alt="now! insight" className="h-12 w-auto object-contain mb-4" />
           <div className="mb-10">
             <h1 className="text-4xl font-bold leading-tight mb-3">
-              Controle total dos seus <span className="text-gradient-hero">anúncios</span>
+              Controle total dos seus{' '}
+              <span className="text-gradient-hero">anúncios</span>
             </h1>
             <p className="text-muted-foreground leading-relaxed">
               Dashboard unificado para gestores de tráfego que querem resultados reais.
@@ -170,7 +166,7 @@ export default function Auth() {
         <div
           className="absolute inset-0 pointer-events-none lg:hidden"
           style={{
-            background: "radial-gradient(ellipse 80% 50% at 50% 0%, hsl(262 83% 58% / 0.12), transparent 60%)",
+            background: 'radial-gradient(ellipse 80% 50% at 50% 0%, hsl(262 83% 58% / 0.12), transparent 60%)',
           }}
         />
 
@@ -182,10 +178,10 @@ export default function Auth() {
           <div className="rounded-2xl border border-border bg-[hsl(var(--surface))] p-8 shadow-card">
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-foreground mb-1.5">
-                {isLogin ? "Bem-vindo de volta" : "Criar conta"}
+                {isLogin ? 'Bem-vindo de volta' : 'Criar conta'}
               </h2>
               <p className="text-sm text-muted-foreground">
-                {isLogin ? "Entre para acessar seu dashboard" : "Comece a monitorar suas campanhas"}
+                {isLogin ? 'Entre para acessar seu dashboard' : 'Comece a monitorar suas campanhas'}
               </p>
             </div>
 
@@ -193,9 +189,7 @@ export default function Auth() {
             {isLogin ? (
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email" className="text-sm font-medium text-foreground">
-                    Email
-                  </Label>
+                  <Label htmlFor="login-email" className="text-sm font-medium text-foreground">Email</Label>
                   <Input
                     id="login-email"
                     type="email"
@@ -209,13 +203,8 @@ export default function Auth() {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="login-password" className="text-sm font-medium text-foreground">
-                      Senha
-                    </Label>
-                    <button
-                      type="button"
-                      className="text-xs text-[hsl(var(--periwinkle))] hover:opacity-80 transition-opacity"
-                    >
+                    <Label htmlFor="login-password" className="text-sm font-medium text-foreground">Senha</Label>
+                    <button type="button" className="text-xs text-[hsl(var(--periwinkle))] hover:opacity-80 transition-opacity">
                       Esqueceu a senha?
                     </button>
                   </div>
@@ -295,31 +284,23 @@ export default function Auth() {
 
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
-                {isLogin ? "Não tem conta? " : "Já tem conta? "}
+                {isLogin ? 'Não tem conta? ' : 'Já tem conta? '}
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsLogin(!isLogin);
-                    clearErrors();
-                  }}
+                  onClick={() => { setIsLogin(!isLogin); clearErrors(); }}
                   className="text-[hsl(var(--periwinkle))] hover:opacity-80 font-medium transition-opacity"
                 >
-                  {isLogin ? "Cadastre-se grátis" : "Fazer login"}
+                  {isLogin ? 'Cadastre-se grátis' : 'Fazer login'}
                 </button>
               </p>
             </div>
           </div>
 
           <p className="text-center text-xs text-muted-foreground mt-5">
-            Ao continuar, você concorda com nossos{" "}
-            <a href="#" className="hover:text-foreground underline underline-offset-2 transition-colors">
-              Termos
-            </a>{" "}
-            e{" "}
-            <a href="#" className="hover:text-foreground underline underline-offset-2 transition-colors">
-              Privacidade
-            </a>
-            .
+            Ao continuar, você concorda com nossos{' '}
+            <a href="#" className="hover:text-foreground underline underline-offset-2 transition-colors">Termos</a>
+            {' '}e{' '}
+            <a href="#" className="hover:text-foreground underline underline-offset-2 transition-colors">Privacidade</a>.
           </p>
         </div>
       </div>
