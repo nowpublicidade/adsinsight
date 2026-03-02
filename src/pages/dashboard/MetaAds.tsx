@@ -305,15 +305,8 @@ export default function MetaAds() {
     ? (campaignData as any[]).slice(campaignPage * pageSize, (campaignPage + 1) * pageSize)
     : [];
   const totalCampaignPages = campaignData ? Math.ceil((campaignData as any[]).length / pageSize) : 0;
-  const sortedAds = adsData
-    ? [...(adsData as any[])].sort((a, b) => {
-        const aVal = getMetricValues(a, primaryMetricKey).value ?? 0;
-        const bVal = getMetricValues(b, primaryMetricKey).value ?? 0;
-        return bVal - aVal;
-      })
-    : [];
-  const paginatedAds = sortedAds.slice(adPage * pageSize, (adPage + 1) * pageSize);
-  const totalAdPages = Math.ceil(sortedAds.length / pageSize);
+  const paginatedAds = adsData ? (adsData as any[]).slice(adPage * pageSize, (adPage + 1) * pageSize) : [];
+  const totalAdPages = adsData ? Math.ceil((adsData as any[]).length / pageSize) : 0;
 
   const primaryMetricKey = (client as any)?.meta_primary_metric || "leads";
   const metricCfg = getMetricConfig(primaryMetricKey);
@@ -384,12 +377,7 @@ export default function MetaAds() {
 
       {activeTab === "overview" && (
         <div className="space-y-6">
-          <div
-            className={cn(
-              "grid grid-cols-2 gap-3",
-              primaryMetricKey === "purchases" ? "sm:grid-cols-4 lg:grid-cols-8" : "sm:grid-cols-3 lg:grid-cols-6",
-            )}
-          >
+          <div className={cn("grid grid-cols-2 gap-3", primaryMetricKey === 'purchases' ? "sm:grid-cols-4 lg:grid-cols-8" : "sm:grid-cols-3 lg:grid-cols-6")}>
             <KpiCard
               label="Investimento"
               value={formatValue("spend", metrics?.spend)}
@@ -426,7 +414,7 @@ export default function MetaAds() {
               icon={<DollarSign className="h-4 w-4" />}
               isLoading={metricsLoading}
             />
-            {primaryMetricKey === "purchases" && (
+            {primaryMetricKey === 'purchases' && (
               <>
                 <KpiCard
                   label="ROAS"
@@ -459,11 +447,11 @@ export default function MetaAds() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Campanha</TableHead>
+                         <TableHead>Campanha</TableHead>
                           <TableHead className="text-right">Investimento</TableHead>
                           <TableHead className="text-right">{metricCfg.label}</TableHead>
                           <TableHead className="text-right">{metricCfg.costLabel}</TableHead>
-                          {primaryMetricKey === "purchases" && (
+                          {primaryMetricKey === 'purchases' && (
                             <>
                               <TableHead className="text-right">ROAS</TableHead>
                               <TableHead className="text-right">Valor Conversão</TableHead>
@@ -480,22 +468,17 @@ export default function MetaAds() {
                             <TableCell className="text-right">
                               {formatValue(metricCfg.costKey, getMetricValues(c, primaryMetricKey).cost)}
                             </TableCell>
-                            {primaryMetricKey === "purchases" && (
+                            {primaryMetricKey === 'purchases' && (
                               <>
                                 <TableCell className="text-right">{formatValue("roas", c.roas)}</TableCell>
-                                <TableCell className="text-right">
-                                  {formatValue("purchaseValue", c.purchaseValue)}
-                                </TableCell>
+                                <TableCell className="text-right">{formatValue("purchaseValue", c.purchaseValue)}</TableCell>
                               </>
                             )}
                           </TableRow>
                         ))}
                         {paginatedCampaigns.length === 0 && (
                           <TableRow>
-                            <TableCell
-                              colSpan={primaryMetricKey === "purchases" ? 6 : 4}
-                              className="text-center text-muted-foreground py-8"
-                            >
+                            <TableCell colSpan={primaryMetricKey === 'purchases' ? 6 : 4} className="text-center text-muted-foreground py-8">
                               Nenhuma campanha encontrada
                             </TableCell>
                           </TableRow>
@@ -695,9 +678,7 @@ export default function MetaAds() {
                           </TableCell>
                           <TableCell className="text-right">{formatValue("ctr", ad.ctr)}</TableCell>
                           <TableCell className="text-right">{ad.purchases ?? 0}</TableCell>
-                          <TableCell className="text-right">
-                            {formatValue("costPerPurchase", ad.costPerPurchase)}
-                          </TableCell>
+                          <TableCell className="text-right">{formatValue("costPerPurchase", ad.costPerPurchase)}</TableCell>
                           <TableCell className="text-right">{formatValue("roas", ad.roas)}</TableCell>
                           <TableCell className="text-right">{formatValue("purchaseValue", ad.purchaseValue)}</TableCell>
                         </TableRow>
