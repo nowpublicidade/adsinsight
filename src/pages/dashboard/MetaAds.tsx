@@ -68,8 +68,10 @@ const formatValue = (key: string, value: number | undefined): string => {
     "costPerCheckout",
     "costPerLinkClick",
     "costPerViewContent",
+    "purchaseValue",
   ];
   const percentMetrics = ["ctr"];
+  if (key === "roas") return `${value.toFixed(2)}x`;
   if (currencyMetrics.includes(key))
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
   if (percentMetrics.includes(key)) return `${value.toFixed(2)}%`;
@@ -618,6 +620,10 @@ export default function MetaAds() {
                         <TableHead className="text-right">{metricCfg.label}</TableHead>
                         <TableHead className="text-right">{metricCfg.costLabel}</TableHead>
                         <TableHead className="text-right">CTR</TableHead>
+                        <TableHead className="text-right">Compras</TableHead>
+                        <TableHead className="text-right">Custo/Compra</TableHead>
+                        <TableHead className="text-right">ROAS</TableHead>
+                        <TableHead className="text-right">Valor Conversão</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -643,11 +649,15 @@ export default function MetaAds() {
                             {formatValue(metricCfg.costKey, getMetricValues(ad, primaryMetricKey).cost)}
                           </TableCell>
                           <TableCell className="text-right">{formatValue("ctr", ad.ctr)}</TableCell>
+                          <TableCell className="text-right">{ad.purchases ?? 0}</TableCell>
+                          <TableCell className="text-right">{formatValue("costPerPurchase", ad.costPerPurchase)}</TableCell>
+                          <TableCell className="text-right">{formatValue("roas", ad.roas)}</TableCell>
+                          <TableCell className="text-right">{formatValue("purchaseValue", ad.purchaseValue)}</TableCell>
                         </TableRow>
                       ))}
                       {paginatedAds.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                             Nenhum anúncio encontrado
                           </TableCell>
                         </TableRow>
