@@ -58,6 +58,7 @@ const formatValue = (key: string, value: number | undefined): string => {
     "cost_per_conversion",
   ];
   const percentMetrics = ["ctr", "conversionRate", "engagementRate"];
+  if (key === "roas") return `${value.toFixed(2)}x`;
   if (currencyMetrics.includes(key))
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
   if (percentMetrics.includes(key)) return `${value.toFixed(2)}%`;
@@ -395,12 +396,19 @@ export default function Dashboard() {
               const mk = (client as any)?.meta_primary_metric || "leads";
               const mc = getMetricConfig(mk);
               const mv = metaData ? getMetricValues(metaData, mk) : { value: 0, cost: 0 };
-              return [
+              const base = [
                 { label: "Investimento", value: formatValue("spend", metaData?.spend), key: "spend" },
                 { label: mc.label, value: formatValue(mc.key, mv.value), key: mc.key },
                 { label: mc.costLabel, value: formatValue(mc.costKey, mv.cost), key: mc.costKey },
                 { label: "CPM", value: formatValue("cpm", metaData?.cpm), key: "cpm" },
               ];
+              if (mk === "purchases") {
+                base.push(
+                  { label: "ROAS", value: formatValue("roas", metaData?.roas), key: "roas" },
+                  { label: "Valor Conversão", value: formatValue("purchaseValue", metaData?.purchaseValue), key: "purchaseValue" },
+                );
+              }
+              return base;
             })()}
           />
 
