@@ -366,9 +366,17 @@ export default function Dashboard() {
               isLoading={metaLoading && isMetaConnected}
             />
             <KpiCard
-              label="Impressões"
-              value={formatValue("impressions", metaData?.impressions)}
-              icon={<Eye className="h-4 w-4" />}
+              label={(() => {
+                const mk = (client as any)?.meta_primary_metric || "leads";
+                return getMetricConfig(mk).label;
+              })()}
+              value={(() => {
+                const mk = (client as any)?.meta_primary_metric || "leads";
+                const mc = getMetricConfig(mk);
+                const mv = metaData ? getMetricValues(metaData, mk) : { value: 0, cost: 0 };
+                return formatValue(mc.key, mv.value);
+              })()}
+              icon={<Target className="h-4 w-4" />}
               colorClass="text-meta"
               isLoading={metaLoading && isMetaConnected}
             />
@@ -465,9 +473,9 @@ export default function Dashboard() {
               isLoading={googleLoading && isGoogleConnected}
             />
             <KpiCard
-              label="CPM"
-              value={formatValue("average_cpm", googleData?.average_cpm)}
-              icon={<DollarSign className="h-4 w-4" />}
+              label="Conversões"
+              value={formatValue("conversions", googleData?.conversions)}
+              icon={<Target className="h-4 w-4" />}
               colorClass="text-google"
               isLoading={googleLoading && isGoogleConnected}
             />
