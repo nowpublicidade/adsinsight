@@ -14,13 +14,9 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   role: AppRole | null;
-  /** Lista de contas que o usuário tem acesso */
   availableClients: ClientOption[];
-  /** Conta atualmente selecionada (null = ainda não escolheu) */
   clientId: string | null;
-  /** Define a conta ativa e persiste na sessão */
   selectClient: (clientId: string) => void;
-  /** Limpa a conta ativa (volta para tela de seleção) */
   clearSelectedClient: () => void;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -44,35 +40,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUserData = useCallback(async (userId: string) => {
     try {
       // 1. Buscar role
-      const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", userId).single();
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .single();
 
-      if (roleData) {
-        setRole(roleData.role as AppRole);
+      if (roleError) {
+        console.error("[Auth] Erro ao buscar role:", roleError);
       }
 
-      // 2. Buscar todos os clientes que o usuário tem acesso
-      const { data: accessData } = await supabase
+      const userRole = roleData?.role as AppRole | undefined;
+      if (userRole) setRole(userRole);
+
+      // 2. Admin não precisa de conta selecionada
+      if (userRole === "admin") {
+        setLoading(false);
+        return;
+      }
+
+      // 3. Buscar acessos a contas via user_client_access
+      // Usamos cast "as any" pois o types.ts ainda não foi regenerado com a nova tabela.
+      // Para regenerar: npx supabase gen types typescript --project-id <id> > src/integrations/supabase/types.ts
+      const { data: accessData, error: accessError } = await (supabase as any)
         .from("user_client_access")
         .select("client_id, clients(id, name, logo_url)")
         .eq("user_id", userId);
+
+      if (accessError) {
+        console.error("[Auth] Erro ao buscar user_client_access:", accessError);
+        setLoading(false);
+        return;
+      }
 
       const clients: ClientOption[] = (accessData ?? []).map((row: any) => row.clients).filter(Boolean);
 
       setAvailableClients(clients);
 
-      // 3. Restaurar cliente selecionado da sessão (sessionStorage)
+      // 4. Restaurar cliente selecionado ou selecionar automaticamente se só há um
       const stored = sessionStorage.getItem(AUTH_CLIENT_KEY);
       if (stored && clients.some((c) => c.id === stored)) {
         setClientId(stored);
       } else if (clients.length === 1) {
-        // Se só tem uma conta, seleciona automaticamente
         setClientId(clients[0].id);
         sessionStorage.setItem(AUTH_CLIENT_KEY, clients[0].id);
       } else {
         setClientId(null);
       }
     } catch (error) {
-      console.error("Error fetching user data:", error);
+      console.error("[Auth] Erro inesperado em fetchUserData:", error);
     } finally {
       setLoading(false);
     }
@@ -81,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
 
