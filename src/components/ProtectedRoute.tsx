@@ -1,14 +1,14 @@
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Navigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Loader2 } from "lucide-react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: 'admin' | 'client';
+  requiredRole?: "admin" | "client";
 }
 
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { user, role, loading } = useAuth();
+  const { user, role, clientId, availableClients, loading } = useAuth();
 
   if (loading) {
     return (
@@ -18,16 +18,20 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     );
   }
 
+  // Não autenticado
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
 
+  // Role errada — redireciona para o lugar certo
   if (requiredRole && role !== requiredRole) {
-    // Redirect to appropriate page based on role
-    if (role === 'admin') {
-      return <Navigate to="/admin" replace />;
-    }
+    if (role === "admin") return <Navigate to="/admin" replace />;
     return <Navigate to="/dashboard" replace />;
+  }
+
+  // Cliente sem conta selecionada → tela de seleção
+  if (role === "client" && !requiredRole && !clientId && availableClients.length > 0) {
+    return <Navigate to="/account-select" replace />;
   }
 
   return <>{children}</>;
