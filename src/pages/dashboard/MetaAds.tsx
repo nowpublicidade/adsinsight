@@ -140,7 +140,6 @@ export default function MetaAds() {
   const { clientId } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
-  // ✅ dateBody e dateKey vêm do hook — lidam com o preset 'custom' corretamente
   const {
     datePreset,
     setDatePreset,
@@ -261,6 +260,7 @@ export default function MetaAds() {
     enabled: !!clientId && isConnected && activeTab === "demographics",
   });
 
+  // ── Chart data ──
   const ageChartData = demoData
     ? Object.entries(
         (demoData as any[]).reduce((acc: Record<string, number>, d: any) => {
@@ -301,11 +301,18 @@ export default function MetaAds() {
       }))
     : [];
 
+  // ── Campaigns pagination ──
   const paginatedCampaigns = campaignData
     ? (campaignData as any[]).slice(campaignPage * pageSize, (campaignPage + 1) * pageSize)
     : [];
   const totalCampaignPages = campaignData ? Math.ceil((campaignData as any[]).length / pageSize) : 0;
-  // Ordena do maior para o menor resultado (métrica principal)
+
+  // ── Métrica principal — DEVE vir antes do sortedAds ──
+  const primaryMetricKey = (client as any)?.meta_primary_metric || "leads";
+  const metricCfg = getMetricConfig(primaryMetricKey);
+  const metricVal = metrics ? getMetricValues(metrics, primaryMetricKey) : { value: 0, cost: 0 };
+
+  // ── Ads ordenados do maior para o menor resultado ──
   const sortedAds = adsData
     ? [...(adsData as any[])].sort((a, b) => {
         const aVal = getMetricValues(a, primaryMetricKey).value ?? 0;
@@ -315,10 +322,6 @@ export default function MetaAds() {
     : [];
   const paginatedAds = sortedAds.slice(adPage * pageSize, (adPage + 1) * pageSize);
   const totalAdPages = Math.ceil(sortedAds.length / pageSize);
-
-  const primaryMetricKey = (client as any)?.meta_primary_metric || "leads";
-  const metricCfg = getMetricConfig(primaryMetricKey);
-  const metricVal = metrics ? getMetricValues(metrics, primaryMetricKey) : { value: 0, cost: 0 };
 
   const funnelData = metrics
     ? [
