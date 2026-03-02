@@ -38,24 +38,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchUserData = useCallback(async (userId: string) => {
+    console.log("[Auth] fetchUserData iniciado para:", userId);
     try {
       // 1. Buscar role
-      const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", userId).single();
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .single();
+
+      console.log("[Auth] roleData:", roleData, "roleError:", roleError);
 
       const userRole = roleData?.role as AppRole | undefined;
       if (userRole) setRole(userRole);
 
-      // Admin não precisa de conta selecionada
       if (userRole === "admin") {
+        console.log("[Auth] Usuário é admin, finalizando.");
         setLoading(false);
         return;
       }
 
-      // 2. Buscar IDs de contas que o usuário tem acesso (query simples, sem join)
-      const { data: accessData, error: accessError } = await supabase
-        .from("user_client_access" as any)
+      // 2. Buscar acessos
+      console.log("[Auth] Buscando user_client_access...");
+      const { data: accessData, error: accessError } = await (supabase as any)
+        .from("user_client_access")
         .select("client_id")
         .eq("user_id", userId);
+
+      console.log("[Auth] accessData:", accessData, "accessError:", accessError);
 
       if (accessError) {
         console.error("[Auth] Erro ao buscar acessos:", accessError);
@@ -64,19 +74,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const clientIds: string[] = (accessData ?? []).map((r: any) => r.client_id).filter(Boolean);
+      console.log("[Auth] clientIds encontrados:", clientIds);
 
       if (clientIds.length === 0) {
+        console.log("[Auth] Nenhum acesso encontrado.");
         setAvailableClients([]);
         setClientId(null);
         setLoading(false);
         return;
       }
 
-      // 3. Buscar dados dos clientes com os IDs encontrados
+      // 3. Buscar dados dos clientes
       const { data: clientsData, error: clientsError } = await supabase
         .from("clients")
         .select("id, name, logo_url")
         .in("id", clientIds);
+
+      console.log("[Auth] clientsData:", clientsData, "clientsError:", clientsError);
 
       if (clientsError) {
         console.error("[Auth] Erro ao buscar clientes:", clientsError);
@@ -87,20 +101,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const clients: ClientOption[] = (clientsData ?? []) as ClientOption[];
       setAvailableClients(clients);
 
-      // 4. Restaurar cliente selecionado ou selecionar automaticamente se só há um
       const stored = sessionStorage.getItem(AUTH_CLIENT_KEY);
       if (stored && clients.some((c) => c.id === stored)) {
+        console.log("[Auth] Restaurando cliente da sessão:", stored);
         setClientId(stored);
       } else if (clients.length === 1) {
+        console.log("[Auth] Selecionando único cliente automaticamente:", clients[0].id);
         setClientId(clients[0].id);
         sessionStorage.setItem(AUTH_CLIENT_KEY, clients[0].id);
       } else {
+        console.log("[Auth] Múltiplos clientes, aguardando seleção. Total:", clients.length);
         setClientId(null);
       }
     } catch (error) {
-      console.error("[Auth] Erro inesperado em fetchUserData:", error);
+      console.error("[Auth] Erro inesperado:", error);
     } finally {
       setLoading(false);
+      console.log("[Auth] fetchUserData finalizado.");
     }
   }, []);
 
@@ -108,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log("[Auth] onAuthStateChange evento:", _event, "user:", session?.user?.email);
       setSession(session);
       setUser(session?.user ?? null);
 
@@ -123,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("[Auth] getSession:", session?.user?.email ?? "sem sessão");
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -146,7 +165,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    console.log("[Auth] signIn chamado para:", email);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    console.log("[Auth] signIn resultado:", error ?? "sucesso");
     return { error: error ? new Error(error.message) : null };
   };
 
