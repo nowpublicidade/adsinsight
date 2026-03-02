@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useClientConnections } from "@/hooks/useClientConnections";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,12 +11,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Users,
   Settings,
@@ -28,52 +25,54 @@ import {
   Facebook,
   TrendingUp,
   Activity,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
 const adminNavItems = [
-  { href: '/admin', label: 'Clientes', icon: Users },
-  { href: '/admin/users', label: 'Usuários', icon: Users },
-];
-
-const platformNavItems = [
-  { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
-  { href: '/dashboard/meta', label: 'Meta Ads', icon: Facebook },
-  { href: '/dashboard/google', label: 'Google Ads', icon: TrendingUp },
-  { href: '/dashboard/analytics', label: 'Analytics', icon: Activity },
+  { href: "/admin", label: "Clientes", icon: Users },
+  { href: "/admin/users", label: "Usuários", icon: Users },
 ];
 
 const bottomNavItems = [
-  { href: '/dashboard/reports', label: 'Relatórios', icon: FileText },
-  { href: '/dashboard/connections', label: 'Conexões', icon: LinkIcon },
-  { href: '/dashboard/settings', label: 'Configurações', icon: Settings },
+  { href: "/dashboard/reports", label: "Relatórios", icon: FileText },
+  { href: "/dashboard/connections", label: "Conexões", icon: LinkIcon },
+  { href: "/dashboard/settings", label: "Configurações", icon: Settings },
 ];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, role, signOut } = useAuth();
+  const connections = useClientConnections();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const isAdmin = role === 'admin';
+  const isAdmin = role === "admin";
+
+  // Nav items filtrados pelas conexões ativas do cliente
+  const platformNavItems = [
+    { href: "/dashboard", label: "Home", icon: LayoutDashboard },
+    ...(connections.meta ? [{ href: "/dashboard/meta", label: "Meta Ads", icon: Facebook }] : []),
+    ...(connections.google ? [{ href: "/dashboard/google", label: "Google Ads", icon: TrendingUp }] : []),
+    ...(connections.analytics ? [{ href: "/dashboard/analytics", label: "Analytics", icon: Activity }] : []),
+  ];
 
   const handleSignOut = async () => {
     await signOut();
-    navigate('/auth');
+    navigate("/auth");
   };
 
-  const userInitials = user?.email?.substring(0, 2).toUpperCase() || 'U';
+  const userInitials = user?.email?.substring(0, 2).toUpperCase() || "U";
 
   const isActive = (href: string) => {
-    if (href === '/dashboard') return location.pathname === '/dashboard';
+    if (href === "/dashboard") return location.pathname === "/dashboard";
     return location.pathname.startsWith(href);
   };
 
-  const SidebarIcon = ({ item }: { item: typeof platformNavItems[0] }) => {
+  const SidebarIcon = ({ item }: { item: (typeof platformNavItems)[0] }) => {
     const active = isActive(item.href);
     return (
       <Tooltip>
@@ -82,17 +81,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             to={item.href}
             onClick={() => setSidebarOpen(false)}
             className={cn(
-              'relative flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200',
+              "relative flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200",
               active
-                ? 'bg-[hsl(var(--primary)/0.18)] text-primary'
-                : 'text-muted-foreground hover:bg-[hsl(var(--surface-2))] hover:text-foreground',
+                ? "bg-[hsl(var(--primary)/0.18)] text-primary"
+                : "text-muted-foreground hover:bg-[hsl(var(--surface-2))] hover:text-foreground",
             )}
           >
             <item.icon className="h-[18px] w-[18px]" />
             {/* Linha ativa à direita */}
-            {active && (
-              <span className="absolute -right-[1px] top-2.5 bottom-2.5 w-[2px] rounded-full bg-primary" />
-            )}
+            {active && <span className="absolute -right-[1px] top-2.5 bottom-2.5 w-[2px] rounded-full bg-primary" />}
           </Link>
         </TooltipTrigger>
         <TooltipContent side="right" sideOffset={12} className="text-xs">
@@ -104,24 +101,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
-
       {/* ── Mobile header ── */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 h-14 border-b border-border backdrop-blur-xl bg-[hsl(var(--background)/0.9)]">
         <div className="flex items-center justify-between h-full px-4">
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
+            <Button variant="ghost" size="icon-sm" onClick={() => setSidebarOpen(!sidebarOpen)}>
               {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </Button>
             {/* Logo mobile — versão compacta */}
-            <img
-              src="/logo.png"
-              alt="now! insight"
-              className="h-7 w-auto object-contain"
-            />
+            <img src="/logo.png" alt="now! insight" className="h-7 w-auto object-contain" />
           </div>
 
           <DropdownMenu>
@@ -163,10 +151,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* ── Sidebar ── */}
       <aside
         className={cn(
-          'fixed top-0 left-0 z-50 h-full w-[68px] flex flex-col',
-          'bg-[hsl(var(--sidebar-background))] border-r border-sidebar-border',
-          'transition-transform duration-300 lg:translate-x-0',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          "fixed top-0 left-0 z-50 h-full w-[68px] flex flex-col",
+          "bg-[hsl(var(--sidebar-background))] border-r border-sidebar-border",
+          "transition-transform duration-300 lg:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         {/* Logo area — badge tipográfico "n!" baseado na identidade do logo */}
@@ -176,14 +164,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               to="/dashboard"
               className="h-14 flex items-center justify-center border-b border-sidebar-border shrink-0 group"
             >
-              <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center
+              <div
+                className="w-10 h-10 rounded-xl bg-black flex items-center justify-center
                               transition-shadow duration-300 group-hover:shadow-glow-primary select-none"
-                style={{ border: '1px solid hsl(var(--border))' }}
+                style={{ border: "1px solid hsl(var(--border))" }}
               >
                 {/* "n" em branco + "!" em roxo — replicando a paleta do logo */}
                 <span className="text-[17px] font-black leading-none tracking-tighter">
-                  <span style={{ color: '#ffffff', fontFamily: 'Geist, Inter, system-ui' }}>n</span>
-                  <span style={{ color: 'hsl(var(--primary))' }}>!</span>
+                  <span style={{ color: "#ffffff", fontFamily: "Geist, Inter, system-ui" }}>n</span>
+                  <span style={{ color: "hsl(var(--primary))" }}>!</span>
                 </span>
               </div>
             </Link>
@@ -199,9 +188,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             adminNavItems.map((item) => <SidebarIcon key={item.href} item={item} />)
           ) : (
             <>
-              {platformNavItems.map((item) => <SidebarIcon key={item.href} item={item} />)}
+              {platformNavItems.map((item) => (
+                <SidebarIcon key={item.href} item={item} />
+              ))}
               <div className="w-8 h-px bg-sidebar-border my-3" />
-              {bottomNavItems.map((item) => <SidebarIcon key={item.href} item={item} />)}
+              {bottomNavItems.map((item) => (
+                <SidebarIcon key={item.href} item={item} />
+              ))}
             </>
           )}
         </nav>
@@ -238,9 +231,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       {/* ── Main content ── */}
       <main className="lg:pl-[68px] pt-14 lg:pt-0 min-h-screen">
-        <div className="p-4 lg:p-6 max-w-[1600px]">
-          {children}
-        </div>
+        <div className="p-4 lg:p-6 max-w-[1600px]">{children}</div>
       </main>
     </div>
   );
