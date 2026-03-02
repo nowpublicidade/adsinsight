@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import AccountSelect from "./pages/AccountSelect";
 import AdminClients from "./pages/admin/AdminClients";
 import AdminUsers from "./pages/admin/AdminUsers";
 import Dashboard from "./pages/dashboard/Dashboard";
@@ -32,99 +33,102 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
-            
+
+            {/* Seleção de conta — acessível apenas para usuários autenticados */}
+            <Route path="/account-select" element={<AccountSelect />} />
+
             {/* Admin Routes */}
-            <Route 
-              path="/admin" 
+            <Route
+              path="/admin"
               element={
                 <ProtectedRoute requiredRole="admin">
                   <AdminClients />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/admin/users" 
+            <Route
+              path="/admin/users"
               element={
                 <ProtectedRoute requiredRole="admin">
                   <AdminUsers />
                 </ProtectedRoute>
-              } 
+              }
             />
-            
+
             {/* Client Dashboard Routes */}
-            <Route 
-              path="/dashboard" 
+            <Route
+              path="/dashboard"
               element={
                 <ProtectedRoute>
                   <Dashboard />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/dashboard/meta" 
+            <Route
+              path="/dashboard/meta"
               element={
                 <ProtectedRoute>
                   <MetaAds />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/dashboard/google" 
+            <Route
+              path="/dashboard/google"
               element={
                 <ProtectedRoute>
                   <GoogleAds />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/dashboard/analytics" 
+            <Route
+              path="/dashboard/analytics"
               element={
                 <ProtectedRoute>
                   <Analytics />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/dashboard/connections" 
+            <Route
+              path="/dashboard/connections"
               element={
                 <ProtectedRoute>
                   <Connections />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/dashboard/reports" 
+            <Route
+              path="/dashboard/reports"
               element={
                 <ProtectedRoute>
                   <Reports />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/dashboard/reports/:reportId/edit" 
+            <Route
+              path="/dashboard/reports/:reportId/edit"
               element={
                 <ProtectedRoute>
                   <ReportEditor />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/dashboard/reports/:reportId/view" 
+            <Route
+              path="/dashboard/reports/:reportId/view"
               element={
                 <ProtectedRoute>
                   <ReportViewer />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/dashboard/settings" 
+            <Route
+              path="/dashboard/settings"
               element={
                 <ProtectedRoute>
                   <Settings />
                 </ProtectedRoute>
-              } 
+              }
             />
-            
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
