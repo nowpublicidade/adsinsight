@@ -40,41 +40,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUserData = useCallback(async (userId: string) => {
     try {
       // 1. Buscar role
-      const { data: roleData, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .single();
-
-      if (roleError) {
-        console.error("[Auth] Erro ao buscar role:", roleError);
-      }
+      const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", userId).single();
 
       const userRole = roleData?.role as AppRole | undefined;
       if (userRole) setRole(userRole);
 
-      // 2. Admin não precisa de conta selecionada
+      // Admin não precisa de conta selecionada
       if (userRole === "admin") {
         setLoading(false);
         return;
       }
 
-      // 3. Buscar acessos a contas via user_client_access
-      // Usamos cast "as any" pois o types.ts ainda não foi regenerado com a nova tabela.
-      // Para regenerar: npx supabase gen types typescript --project-id <id> > src/integrations/supabase/types.ts
-      const { data: accessData, error: accessError } = await (supabase as any)
-        .from("user_client_access")
-        .select("client_id, clients(id, name, logo_url)")
+      // 2. Buscar IDs de contas que o usuário tem acesso (query simples, sem join)
+      const { data: accessData, error: accessError } = await supabase
+        .from("user_client_access" as any)
+        .select("client_id")
         .eq("user_id", userId);
 
       if (accessError) {
-        console.error("[Auth] Erro ao buscar user_client_access:", accessError);
+        console.error("[Auth] Erro ao buscar acessos:", accessError);
         setLoading(false);
         return;
       }
 
-      const clients: ClientOption[] = (accessData ?? []).map((row: any) => row.clients).filter(Boolean);
+      const clientIds: string[] = (accessData ?? []).map((r: any) => r.client_id).filter(Boolean);
 
+      if (clientIds.length === 0) {
+        setAvailableClients([]);
+        setClientId(null);
+        setLoading(false);
+        return;
+      }
+
+      // 3. Buscar dados dos clientes com os IDs encontrados
+      const { data: clientsData, error: clientsError } = await supabase
+        .from("clients")
+        .select("id, name, logo_url")
+        .in("id", clientIds);
+
+      if (clientsError) {
+        console.error("[Auth] Erro ao buscar clientes:", clientsError);
+        setLoading(false);
+        return;
+      }
+
+      const clients: ClientOption[] = (clientsData ?? []) as ClientOption[];
       setAvailableClients(clients);
 
       // 4. Restaurar cliente selecionado ou selecionar automaticamente se só há um
