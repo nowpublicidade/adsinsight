@@ -41,6 +41,15 @@ import {
   Legend,
 } from "recharts";
 
+const COLORS = [
+  "hsl(262,83%,58%)",
+  "hsl(200,95%,50%)",
+  "hsl(142,71%,45%)",
+  "hsl(38,92%,50%)",
+  "hsl(0,84%,60%)",
+  "hsl(280,70%,55%)",
+];
+
 // Format metric values
 const formatValue = (key: string, value: number | undefined): string => {
   if (value === undefined || value === null) return "—";
@@ -67,7 +76,6 @@ const formatValue = (key: string, value: number | undefined): string => {
   return value.toLocaleString("pt-BR");
 };
 
-// KPI Card with comparison bar
 function KpiCard({
   label,
   value,
@@ -115,7 +123,6 @@ function KpiCard({
   );
 }
 
-// Platform summary card
 function PlatformSummaryCard({
   platform,
   icon,
@@ -152,15 +159,15 @@ function PlatformSummaryCard({
             </Button>
           </div>
         ) : isLoading ? (
-          <div className="flex justify-center py-4">
+          <div className="flex items-center justify-center py-4">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
             {metrics.map((m) => (
-              <div key={m.key} className="flex justify-between items-center">
-                <span className="text-xs text-muted-foreground">{m.label}</span>
-                <span className="text-sm font-semibold">{m.value}</span>
+              <div key={m.key}>
+                <p className="text-xs text-muted-foreground">{m.label}</p>
+                <p className="text-sm font-semibold">{m.value}</p>
               </div>
             ))}
           </div>
@@ -170,32 +177,18 @@ function PlatformSummaryCard({
   );
 }
 
-const COLORS = [
-  "hsl(188, 95%, 43%)",
-  "hsl(217, 91%, 60%)",
-  "hsl(142, 76%, 36%)",
-  "hsl(38, 92%, 50%)",
-  "hsl(4, 90%, 58%)",
-  "hsl(280, 70%, 55%)",
-];
-
 export default function Dashboard() {
   const { clientId } = useAuth();
   const navigate = useNavigate();
-  const { datePreset, setDatePreset, customDateRange, setCustomDateRange, isRefreshing, handleRefresh } =
-    useDashboardFilters(["client", "meta-insights", "google-insights", "ga-home-insights", "ga-home-sources"]);
-
-  // Monta parâmetros de data corretamente: preset válido OU range personalizado
-  const isCustom = datePreset === "custom";
-  const dateBody =
-    isCustom && customDateRange?.from && customDateRange?.to
-      ? {
-          date_range: {
-            start: format(customDateRange.from, "yyyy-MM-dd"),
-            end: format(customDateRange.to, "yyyy-MM-dd"),
-          },
-        }
-      : { date_preset: datePreset };
+  const { datePreset, setDatePreset, customDateRange, setCustomDateRange, isRefreshing, handleRefresh, dateBody } =
+    useDashboardFilters([
+      "meta-insights",
+      "google-insights",
+      "ga-home-insights",
+      "ga-home-sources",
+      "meta-insights-daily",
+      "google-insights-daily",
+    ]);
 
   const { data: client, isLoading: clientLoading } = useQuery({
     queryKey: ["client", clientId],
@@ -208,6 +201,15 @@ export default function Dashboard() {
     enabled: !!clientId,
   });
 
+  const isMetaConnected = !!client?.meta_connected_at;
+  const isGoogleConnected = !!client?.google_connected_at;
+  const isAnalyticsConnected = !!(client as any)?.ga_connected_at;
+
+  // Calcula o número de colunas ativas para o grid
+  const activeCount = [isMetaConnected, isGoogleConnected, isAnalyticsConnected].filter(Boolean).length;
+  const gridClass =
+    activeCount === 1 ? "grid-cols-1 max-w-xl" : activeCount === 2 ? "lg:grid-cols-2" : "lg:grid-cols-3";
+
   const { data: metaData, isLoading: metaLoading } = useQuery({
     queryKey: ["meta-insights", clientId, datePreset, customDateRange?.from, customDateRange?.to],
     queryFn: async () => {
@@ -218,7 +220,8 @@ export default function Dashboard() {
       if (error) throw error;
       return data?.metrics || null;
     },
-    enabled: !!clientId && !!client?.meta_connected_at,
+    enabled: !!clientId && isMetaConnected,
+    ...manualFetchOptions,
   });
 
   const { data: googleData, isLoading: googleLoading } = useQuery({
@@ -231,14 +234,10 @@ export default function Dashboard() {
       if (error) throw error;
       return data?.metrics || null;
     },
-    enabled: !!clientId && !!client?.google_connected_at,
+    enabled: !!clientId && isGoogleConnected,
+    ...manualFetchOptions,
   });
 
-  const isMetaConnected = !!client?.meta_connected_at;
-  const isGoogleConnected = !!client?.google_connected_at;
-  const isAnalyticsConnected = !!(client as any)?.ga_connected_at;
-
-  // Fetch GA overview data
   const { data: gaData, isLoading: gaLoading } = useQuery({
     queryKey: ["ga-home-insights", clientId, datePreset, customDateRange?.from, customDateRange?.to],
     queryFn: async () => {
@@ -257,9 +256,9 @@ export default function Dashboard() {
       return data?.metrics || null;
     },
     enabled: !!clientId && isAnalyticsConnected,
+    ...manualFetchOptions,
   });
 
-  // Fetch GA source data for pie chart
   const { data: gaSourceData } = useQuery({
     queryKey: ["ga-home-sources", clientId, datePreset, customDateRange?.from, customDateRange?.to],
     queryFn: async () => {
@@ -278,9 +277,9 @@ export default function Dashboard() {
       return data?.data || null;
     },
     enabled: !!clientId && isAnalyticsConnected,
+    ...manualFetchOptions,
   });
 
-  // ── Daily breakdown: Meta Ads ──
   const { data: metaDailyData } = useQuery({
     queryKey: ["meta-insights-daily", clientId, datePreset, customDateRange?.from, customDateRange?.to],
     queryFn: async () => {
@@ -289,13 +288,12 @@ export default function Dashboard() {
         body: { client_id: clientId, ...dateBody, breakdown: "daily" },
       });
       if (error) throw error;
-      // Normaliza date_start → date para o BarChart
       return (data?.daily || []).map((d: any) => ({ ...d, date: d.date_start }));
     },
-    enabled: !!clientId && !!client?.meta_connected_at,
+    enabled: !!clientId && isMetaConnected,
+    ...manualFetchOptions,
   });
 
-  // ── Daily breakdown: Google Ads ──
   const { data: googleDailyData } = useQuery({
     queryKey: ["google-insights-daily", clientId, datePreset, customDateRange?.from, customDateRange?.to],
     queryFn: async () => {
@@ -306,7 +304,8 @@ export default function Dashboard() {
       if (error) throw error;
       return data?.daily || null;
     },
-    enabled: !!clientId && !!client?.google_connected_at,
+    enabled: !!clientId && isGoogleConnected,
+    ...manualFetchOptions,
   });
 
   if (clientLoading) {
@@ -348,317 +347,304 @@ export default function Dashboard() {
         onCustomDateRangeChange={setCustomDateRange}
       />
 
-      {/* 3-Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* === COLUMN 1: META ADS === */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Facebook className="h-4 w-4 text-meta" />
-            <h2 className="text-sm font-semibold text-meta uppercase tracking-wide">Meta Ads</h2>
-          </div>
+      <div className={cn("grid grid-cols-1 gap-6", gridClass)}>
+        {/* === COLUNA META ADS === */}
+        {isMetaConnected && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Facebook className="h-4 w-4 text-meta" />
+              <h2 className="text-sm font-semibold text-meta uppercase tracking-wide">Meta Ads</h2>
+            </div>
 
-          {/* KPI cards */}
-          <div className="grid grid-cols-2 gap-3">
-            <KpiCard
-              label="Investimento"
-              value={formatValue("spend", metaData?.spend)}
-              icon={<DollarSign className="h-4 w-4" />}
+            <div className="grid grid-cols-2 gap-3">
+              <KpiCard
+                label="Investimento"
+                value={formatValue("spend", metaData?.spend)}
+                icon={<DollarSign className="h-4 w-4" />}
+                colorClass="text-meta"
+                isLoading={metaLoading && isMetaConnected}
+              />
+              <KpiCard
+                label={(() => {
+                  const mk = (client as any)?.meta_primary_metric || "leads";
+                  return getMetricConfig(mk).label;
+                })()}
+                value={(() => {
+                  const mk = (client as any)?.meta_primary_metric || "leads";
+                  const mc = getMetricConfig(mk);
+                  const mv = metaData ? getMetricValues(metaData, mk) : { value: 0, cost: 0 };
+                  return formatValue(mc.key, mv.value);
+                })()}
+                icon={<Target className="h-4 w-4" />}
+                colorClass="text-meta"
+                isLoading={metaLoading && isMetaConnected}
+              />
+            </div>
+
+            <PlatformSummaryCard
+              platform="Meta Ads"
+              icon={<Facebook className="h-4 w-4" />}
               colorClass="text-meta"
-              isLoading={metaLoading && isMetaConnected}
-            />
-            <KpiCard
-              label={(() => {
-                const mk = (client as any)?.meta_primary_metric || "leads";
-                return getMetricConfig(mk).label;
-              })()}
-              value={(() => {
+              borderClass="border-l-meta"
+              isConnected={isMetaConnected}
+              isLoading={metaLoading}
+              onConnect={() => navigate("/dashboard/connections")}
+              metrics={(() => {
                 const mk = (client as any)?.meta_primary_metric || "leads";
                 const mc = getMetricConfig(mk);
                 const mv = metaData ? getMetricValues(metaData, mk) : { value: 0, cost: 0 };
-                return formatValue(mc.key, mv.value);
+                const base = [
+                  { label: "Investimento", value: formatValue("spend", metaData?.spend), key: "spend" },
+                  { label: mc.label, value: formatValue(mc.key, mv.value), key: mc.key },
+                  { label: mc.costLabel, value: formatValue(mc.costKey, mv.cost), key: mc.costKey },
+                  { label: "CPM", value: formatValue("cpm", metaData?.cpm), key: "cpm" },
+                ];
+                if (mk === "purchases") {
+                  base.push(
+                    { label: "ROAS", value: formatValue("roas", metaData?.roas), key: "roas" },
+                    {
+                      label: "Valor Conversão",
+                      value: formatValue("purchaseValue", metaData?.purchaseValue),
+                      key: "purchaseValue",
+                    },
+                  );
+                }
+                return base;
               })()}
-              icon={<Target className="h-4 w-4" />}
-              colorClass="text-meta"
-              isLoading={metaLoading && isMetaConnected}
             />
+
+            <Card className="card-glow">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {getMetricConfig((client as any)?.meta_primary_metric || "leads").label} por Dia
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-48">
+                  {metaDailyData && metaDailyData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={metaDailyData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(v) => v?.slice(5) ?? v}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <RechartsTooltip
+                          contentStyle={{
+                            background: "hsl(var(--surface))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                            fontSize: "12px",
+                          }}
+                          labelStyle={{ color: "hsl(var(--foreground))" }}
+                        />
+                        <Bar
+                          dataKey={getMetricConfig((client as any)?.meta_primary_metric || "leads").key}
+                          fill="hsl(var(--meta))"
+                          radius={[4, 4, 0, 0]}
+                          maxBarSize={32}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                      Sem dados para o período
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
+        )}
 
-          {/* Platform summary */}
-          <PlatformSummaryCard
-            platform="Meta Ads"
-            icon={<Facebook className="h-4 w-4" />}
-            colorClass="text-meta"
-            borderClass="border-l-meta"
-            isConnected={isMetaConnected}
-            isLoading={metaLoading}
-            onConnect={() => navigate("/dashboard/connections")}
-            metrics={(() => {
-              const mk = (client as any)?.meta_primary_metric || "leads";
-              const mc = getMetricConfig(mk);
-              const mv = metaData ? getMetricValues(metaData, mk) : { value: 0, cost: 0 };
-              const base = [
-                { label: "Investimento", value: formatValue("spend", metaData?.spend), key: "spend" },
-                { label: mc.label, value: formatValue(mc.key, mv.value), key: mc.key },
-                { label: mc.costLabel, value: formatValue(mc.costKey, mv.cost), key: mc.costKey },
-                { label: "CPM", value: formatValue("cpm", metaData?.cpm), key: "cpm" },
-              ];
-              if (mk === "purchases") {
-                base.push(
-                  { label: "ROAS", value: formatValue("roas", metaData?.roas), key: "roas" },
-                  { label: "Valor Conversão", value: formatValue("purchaseValue", metaData?.purchaseValue), key: "purchaseValue" },
-                );
-              }
-              return base;
-            })()}
-          />
+        {/* === COLUNA GOOGLE ADS === */}
+        {isGoogleConnected && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp className="h-4 w-4 text-google" />
+              <h2 className="text-sm font-semibold text-google uppercase tracking-wide">Google Ads</h2>
+            </div>
 
-          {/* Temporal chart — Meta */}
-          <Card className="card-glow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">
-                {getMetricConfig((client as any)?.meta_primary_metric || "leads").label} por Dia
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-48">
-                {isMetaConnected && metaDailyData && metaDailyData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={metaDailyData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                        tickLine={false}
-                        axisLine={false}
-                        tickFormatter={(v) => v?.slice(5) ?? v}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <RechartsTooltip
-                        contentStyle={{
-                          background: "hsl(var(--surface))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px",
-                          fontSize: "12px",
-                        }}
-                        labelStyle={{ color: "hsl(var(--foreground))" }}
-                      />
-                      <Bar
-                        dataKey={getMetricConfig((client as any)?.meta_primary_metric || "leads").key}
-                        fill="hsl(var(--meta))"
-                        radius={[4, 4, 0, 0]}
-                        maxBarSize={32}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                    {isMetaConnected ? "Sem dados para o período" : "Conecte o Meta Ads para ver dados temporais"}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            <div className="grid grid-cols-2 gap-3">
+              <KpiCard
+                label="CPC Médio"
+                value={formatValue("average_cpc", googleData?.average_cpc)}
+                icon={<MousePointer className="h-4 w-4" />}
+                colorClass="text-google"
+                isLoading={googleLoading && isGoogleConnected}
+              />
+              <KpiCard
+                label="Conversões"
+                value={formatValue("conversions", googleData?.conversions)}
+                icon={<Target className="h-4 w-4" />}
+                colorClass="text-google"
+                isLoading={googleLoading && isGoogleConnected}
+              />
+            </div>
 
-        {/* === COLUMN 2: GOOGLE ADS === */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="h-4 w-4 text-google" />
-            <h2 className="text-sm font-semibold text-google uppercase tracking-wide">Google Ads</h2>
-          </div>
-
-          {/* KPI cards */}
-          <div className="grid grid-cols-2 gap-3">
-            <KpiCard
-              label="CPC Médio"
-              value={formatValue("average_cpc", googleData?.average_cpc)}
-              icon={<MousePointer className="h-4 w-4" />}
+            <PlatformSummaryCard
+              platform="Google Ads"
+              icon={<TrendingUp className="h-4 w-4" />}
               colorClass="text-google"
-              isLoading={googleLoading && isGoogleConnected}
+              borderClass="border-l-google"
+              isConnected={isGoogleConnected}
+              isLoading={googleLoading}
+              onConnect={() => navigate("/dashboard/connections")}
+              metrics={[
+                { label: "Custo", value: formatValue("cost", googleData?.cost), key: "cost" },
+                { label: "Conversões", value: formatValue("conversions", googleData?.conversions), key: "conversions" },
+                {
+                  label: "Custo/Conv.",
+                  value: formatValue("cost_per_conversion", googleData?.cost_per_conversion),
+                  key: "cpc",
+                },
+                { label: "CPC Médio", value: formatValue("average_cpc", googleData?.average_cpc), key: "avg_cpc" },
+              ]}
             />
-            <KpiCard
-              label="Conversões"
-              value={formatValue("conversions", googleData?.conversions)}
-              icon={<Target className="h-4 w-4" />}
-              colorClass="text-google"
-              isLoading={googleLoading && isGoogleConnected}
-            />
+
+            <Card className="card-glow">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Conversões por Dia</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-48">
+                  {googleDailyData && googleDailyData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={googleDailyData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(v) => v?.slice(5) ?? v}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <RechartsTooltip
+                          contentStyle={{
+                            background: "hsl(var(--surface))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                            fontSize: "12px",
+                          }}
+                          labelStyle={{ color: "hsl(var(--foreground))" }}
+                        />
+                        <Bar dataKey="conversions" fill="hsl(var(--google))" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                      Sem dados para o período
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
+        )}
 
-          {/* Platform summary */}
-          <PlatformSummaryCard
-            platform="Google Ads"
-            icon={<TrendingUp className="h-4 w-4" />}
-            colorClass="text-google"
-            borderClass="border-l-google"
-            isConnected={isGoogleConnected}
-            isLoading={googleLoading}
-            onConnect={() => navigate("/dashboard/connections")}
-            metrics={[
-              { label: "Custo", value: formatValue("cost", googleData?.cost), key: "cost" },
-              { label: "Conversões", value: formatValue("conversions", googleData?.conversions), key: "conversions" },
-              {
-                label: "Custo/Conv.",
-                value: formatValue("cost_per_conversion", googleData?.cost_per_conversion),
-                key: "cpc",
-              },
-              { label: "CPC Médio", value: formatValue("average_cpc", googleData?.average_cpc), key: "avg_cpc" },
-            ]}
-          />
+        {/* === COLUNA ANALYTICS === */}
+        {isAnalyticsConnected && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Activity className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold text-primary uppercase tracking-wide">Analytics</h2>
+            </div>
 
-          {/* Temporal chart — Google */}
-          <Card className="card-glow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Conversões por Dia</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-48">
-                {isGoogleConnected && googleDailyData && googleDailyData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={googleDailyData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                        tickLine={false}
-                        axisLine={false}
-                        tickFormatter={(v) => v?.slice(5) ?? v}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <RechartsTooltip
-                        contentStyle={{
-                          background: "hsl(var(--surface))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px",
-                          fontSize: "12px",
-                        }}
-                        labelStyle={{ color: "hsl(var(--foreground))" }}
-                      />
-                      <Bar dataKey="conversions" fill="hsl(var(--google))" radius={[4, 4, 0, 0]} maxBarSize={32} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                    {isGoogleConnected ? "Sem dados para o período" : "Conecte o Google Ads para ver dados temporais"}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            <div className="grid grid-cols-2 gap-3">
+              <KpiCard
+                label="Sessões"
+                value={formatValue("sessions", gaData?.sessions)}
+                icon={<Users className="h-4 w-4" />}
+                colorClass="text-primary"
+                isLoading={gaLoading}
+              />
+              <KpiCard
+                label="Novos Usuários"
+                value={formatValue("newUsers", gaData?.newUsers)}
+                icon={<Users className="h-4 w-4" />}
+                colorClass="text-primary"
+                isLoading={gaLoading}
+              />
+            </div>
 
-        {/* === COLUMN 3: ANALYTICS === */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Activity className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold text-primary uppercase tracking-wide">Analytics</h2>
-          </div>
-
-          {/* KPI cards */}
-          <div className="grid grid-cols-2 gap-3">
-            <KpiCard
-              label="Sessões"
-              value={isAnalyticsConnected ? formatValue("sessions", gaData?.sessions) : "—"}
-              icon={<Users className="h-4 w-4" />}
+            <PlatformSummaryCard
+              platform="Google Analytics"
+              icon={<Activity className="h-4 w-4" />}
               colorClass="text-primary"
-              isLoading={gaLoading && isAnalyticsConnected}
+              borderClass="border-l-primary"
+              isConnected={isAnalyticsConnected}
+              isLoading={gaLoading}
+              onConnect={() => navigate("/dashboard/connections")}
+              metrics={[
+                { label: "Sessões", value: formatValue("sessions", gaData?.sessions), key: "sessions" },
+                { label: "Novos Usuários", value: formatValue("newUsers", gaData?.newUsers), key: "new_users" },
+                {
+                  label: "Taxa Engajamento",
+                  value: gaData?.engagementRate ? `${(gaData.engagementRate * 100).toFixed(1)}%` : "—",
+                  key: "engagement",
+                },
+                { label: "Eventos", value: formatValue("eventCount", gaData?.eventCount), key: "events" },
+              ]}
             />
-            <KpiCard
-              label="Novos Usuários"
-              value={isAnalyticsConnected ? formatValue("newUsers", gaData?.newUsers) : "—"}
-              icon={<Users className="h-4 w-4" />}
-              colorClass="text-primary"
-              isLoading={gaLoading && isAnalyticsConnected}
-            />
+
+            <Card className="card-glow">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Origem por Acesso</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-48">
+                  {gaSourceData && gaSourceData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={gaSourceData.slice(0, 6).map((r: any) => ({
+                            name: r.sessionSource || "(direto)",
+                            value: r.sessions || 0,
+                          }))}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={40}
+                          outerRadius={70}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          {gaSourceData.slice(0, 6).map((_: any, index: number) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Legend iconSize={8} wrapperStyle={{ fontSize: "11px", color: "hsl(215, 20%, 55%)" }} />
+                        <RechartsTooltip
+                          contentStyle={{
+                            background: "hsl(222, 47%, 10%)",
+                            border: "1px solid hsl(222, 47%, 16%)",
+                            borderRadius: "8px",
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                      Sem dados de origem
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
-
-          {/* Analytics summary */}
-          <PlatformSummaryCard
-            platform="Google Analytics"
-            icon={<Activity className="h-4 w-4" />}
-            colorClass="text-primary"
-            borderClass="border-l-primary"
-            isConnected={isAnalyticsConnected}
-            isLoading={gaLoading}
-            onConnect={() => navigate("/dashboard/connections")}
-            metrics={[
-              {
-                label: "Sessões",
-                value: isAnalyticsConnected ? formatValue("sessions", gaData?.sessions) : "—",
-                key: "sessions",
-              },
-              {
-                label: "Novos Usuários",
-                value: isAnalyticsConnected ? formatValue("newUsers", gaData?.newUsers) : "—",
-                key: "new_users",
-              },
-              {
-                label: "Taxa Engajamento",
-                value:
-                  isAnalyticsConnected && gaData?.engagementRate ? `${(gaData.engagementRate * 100).toFixed(1)}%` : "—",
-                key: "engagement",
-              },
-              {
-                label: "Eventos",
-                value: isAnalyticsConnected ? formatValue("eventCount", gaData?.eventCount) : "—",
-                key: "events",
-              },
-            ]}
-          />
-
-          {/* Pie chart - source */}
-          <Card className="card-glow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Origem por Acesso</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-48">
-                {isAnalyticsConnected && gaSourceData && gaSourceData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={gaSourceData.slice(0, 6).map((r: any) => ({
-                          name: r.sessionSource || "(direto)",
-                          value: r.sessions || 0,
-                        }))}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={40}
-                        outerRadius={70}
-                        paddingAngle={3}
-                        dataKey="value"
-                      >
-                        {gaSourceData.slice(0, 6).map((_: any, index: number) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Legend iconSize={8} wrapperStyle={{ fontSize: "11px", color: "hsl(215, 20%, 55%)" }} />
-                      <RechartsTooltip
-                        contentStyle={{
-                          background: "hsl(222, 47%, 10%)",
-                          border: "1px solid hsl(222, 47%, 16%)",
-                          borderRadius: "8px",
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-                    {isAnalyticsConnected ? "Sem dados de origem" : "Conecte o Analytics"}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        )}
       </div>
     </DashboardLayout>
   );
