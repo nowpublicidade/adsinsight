@@ -187,32 +187,31 @@ serve(async (req) => {
 
     // === BREAKDOWN: campaign ===
     if (breakdown === "campaign") {
-      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=campaign_name,campaign_id,${baseFields}${dateParams}&level=campaign&limit=50&access_token=${accessToken}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
+      // Busca insights e status das campanhas em paralelo (2 requests, não N)
+      const [insightsRes, statusRes] = await Promise.all([
+        fetch(
+          `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=campaign_name,campaign_id,${baseFields}${dateParams}&level=campaign&limit=50&access_token=${accessToken}`,
+        ),
+        fetch(
+          `https://graph.facebook.com/v24.0/${adAccountId}/campaigns?fields=id,effective_status&limit=100&access_token=${accessToken}`,
+        ),
+      ]);
+      const insightsData = await insightsRes.json();
+      const statusData = await statusRes.json();
+      if (insightsData.error) throw new Error(insightsData.error.message);
 
-      // Busca effective_status de cada campanha individualmente
-      const campaigns = await Promise.all(
-        (data.data || []).map(async (row: any) => {
-          let effective_status = null;
-          try {
-            const statusRes = await fetch(
-              `https://graph.facebook.com/v24.0/${row.campaign_id}?fields=effective_status&access_token=${accessToken}`,
-            );
-            const statusData = await statusRes.json();
-            effective_status = statusData.effective_status || null;
-          } catch (e) {
-            console.warn("Could not fetch status for campaign:", row.campaign_id);
-          }
-          return {
-            campaign_name: row.campaign_name,
-            campaign_id: row.campaign_id,
-            effective_status,
-            ...processMetrics(row),
-          };
-        }),
-      );
+      // Monta mapa de id -> effective_status
+      const statusMap: Record<string, string> = {};
+      for (const c of statusData.data || []) {
+        statusMap[c.id] = c.effective_status;
+      }
+
+      const campaigns = (insightsData.data || []).map((row: any) => ({
+        campaign_name: row.campaign_name,
+        campaign_id: row.campaign_id,
+        effective_status: statusMap[row.campaign_id] || null,
+        ...processMetrics(row),
+      }));
 
       return new Response(JSON.stringify({ campaigns }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -221,36 +220,36 @@ serve(async (req) => {
 
     // === BREAKDOWN: ad (with creative previews + status) ===
     if (breakdown === "ad") {
-      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=ad_name,ad_id,campaign_name,${baseFields}${dateParams}&level=ad&limit=50&access_token=${accessToken}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
+      // Busca insights e status dos anúncios em paralelo (2 requests fixos, não N)
+      const [insightsRes, statusRes] = await Promise.all([
+        fetch(
+          `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=ad_name,ad_id,campaign_name,${baseFields}${dateParams}&level=ad&limit=50&access_token=${accessToken}`,
+        ),
+        fetch(
+          `https://graph.facebook.com/v24.0/${adAccountId}/ads?fields=id,effective_status,creative{thumbnail_url,image_url}&limit=100&access_token=${accessToken}`,
+        ),
+      ]);
+      const insightsData = await insightsRes.json();
+      const statusData = await statusRes.json();
+      if (insightsData.error) throw new Error(insightsData.error.message);
 
-      // Fetch ad creative thumbnails e effective_status para cada anúncio
-      const ads = await Promise.all(
-        (data.data || []).map(async (row: any) => {
-          let thumbnail_url = null;
-          let effective_status = null;
-          try {
-            const adDetailUrl = `https://graph.facebook.com/v24.0/${row.ad_id}?fields=creative{thumbnail_url,image_url},effective_status&access_token=${accessToken}`;
-            const adDetailRes = await fetch(adDetailUrl);
-            const adDetail = await adDetailRes.json();
-            thumbnail_url = adDetail?.creative?.image_url || adDetail?.creative?.thumbnail_url || null;
-            effective_status = adDetail?.effective_status || null;
-          } catch (e) {
-            console.warn("Could not fetch creative for ad:", row.ad_id);
-          }
+      // Monta mapa de id -> { effective_status, thumbnail_url }
+      const adMap: Record<string, { effective_status: string | null; thumbnail_url: string | null }> = {};
+      for (const a of statusData.data || []) {
+        adMap[a.id] = {
+          effective_status: a.effective_status || null,
+          thumbnail_url: a.creative?.image_url || a.creative?.thumbnail_url || null,
+        };
+      }
 
-          return {
-            ad_name: row.ad_name,
-            ad_id: row.ad_id,
-            campaign_name: row.campaign_name,
-            thumbnail_url,
-            effective_status,
-            ...processMetrics(row),
-          };
-        }),
-      );
+      const ads = (insightsData.data || []).map((row: any) => ({
+        ad_name: row.ad_name,
+        ad_id: row.ad_id,
+        campaign_name: row.campaign_name,
+        thumbnail_url: adMap[row.ad_id]?.thumbnail_url || null,
+        effective_status: adMap[row.ad_id]?.effective_status || null,
+        ...processMetrics(row),
+      }));
 
       return new Response(JSON.stringify({ ads }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
