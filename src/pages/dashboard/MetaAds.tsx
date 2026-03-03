@@ -80,6 +80,23 @@ const formatValue = (key: string, value: number | undefined): string => {
   return value.toLocaleString("pt-BR");
 };
 
+// ── Badge de status Meta ──
+function MetaStatusBadge({ status }: { status?: string }) {
+  if (!status) return <span className="text-muted-foreground text-xs">—</span>;
+  const isActive = status === "ACTIVE";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap",
+        isActive ? "bg-green-500/10 text-green-500" : "bg-yellow-500/10 text-yellow-500",
+      )}
+    >
+      <span className={cn("w-1.5 h-1.5 rounded-full", isActive ? "bg-green-500" : "bg-yellow-500")} />
+      {isActive ? "Ativo" : "Pausado"}
+    </span>
+  );
+}
+
 function KpiCard({
   label,
   value,
@@ -464,6 +481,7 @@ export default function MetaAds() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Campanha</TableHead>
+                          <TableHead>Status</TableHead>
                           <TableHead className="text-right">Investimento</TableHead>
                           <TableHead className="text-right">{metricCfg.label}</TableHead>
                           <TableHead className="text-right">{metricCfg.costLabel}</TableHead>
@@ -479,6 +497,9 @@ export default function MetaAds() {
                         {paginatedCampaigns.map((c: any) => (
                           <TableRow key={c.campaign_id}>
                             <TableCell className="font-medium max-w-[200px] truncate">{c.campaign_name}</TableCell>
+                            <TableCell>
+                              <MetaStatusBadge status={c.effective_status} />
+                            </TableCell>
                             <TableCell className="text-right">{formatValue("spend", c.spend)}</TableCell>
                             <TableCell className="text-right">{getMetricValues(c, primaryMetricKey).value}</TableCell>
                             <TableCell className="text-right">
@@ -497,7 +518,7 @@ export default function MetaAds() {
                         {paginatedCampaigns.length === 0 && (
                           <TableRow>
                             <TableCell
-                              colSpan={primaryMetricKey === "purchases" ? 6 : 4}
+                              colSpan={primaryMetricKey === "purchases" ? 7 : 5}
                               className="text-center text-muted-foreground py-8"
                             >
                               Nenhuma campanha encontrada
@@ -561,36 +582,33 @@ export default function MetaAds() {
                 {dailyChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={dailyChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 47%, 16%)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(215, 20%, 55%)" }} />
-                      <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "hsl(215, 20%, 55%)" }} />
-                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "hsl(215, 20%, 55%)" }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                      <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                       <RechartsTooltip
                         contentStyle={{
-                          background: "hsl(222, 47%, 10%)",
-                          border: "1px solid hsl(222, 47%, 16%)",
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
                           borderRadius: "8px",
                         }}
                       />
+                      <Legend />
                       <Line
-                        yAxisId="left"
                         type="monotone"
                         dataKey="impressions"
-                        stroke="hsl(214, 89%, 52%)"
+                        stroke="hsl(214,89%,52%)"
                         name="Impressões"
-                        strokeWidth={2}
                         dot={false}
+                        strokeWidth={2}
                       />
                       <Line
-                        yAxisId="right"
                         type="monotone"
                         dataKey="metric"
-                        stroke="hsl(142, 76%, 36%)"
+                        stroke="hsl(142,76%,36%)"
                         name={metricCfg.label}
-                        strokeWidth={2}
                         dot={false}
+                        strokeWidth={2}
                       />
-                      <Legend wrapperStyle={{ fontSize: "12px" }} />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
@@ -666,6 +684,7 @@ export default function MetaAds() {
                         <TableHead>Campanha</TableHead>
                         <TableHead>Prévia</TableHead>
                         <TableHead>Anúncio</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead className="text-right">{metricCfg.label}</TableHead>
                         <TableHead className="text-right">{metricCfg.costLabel}</TableHead>
                         <TableHead className="text-right">CTR</TableHead>
@@ -693,6 +712,9 @@ export default function MetaAds() {
                             )}
                           </TableCell>
                           <TableCell className="font-medium max-w-[180px] truncate">{ad.ad_name}</TableCell>
+                          <TableCell>
+                            <MetaStatusBadge status={ad.effective_status} />
+                          </TableCell>
                           <TableCell className="text-right">{getMetricValues(ad, primaryMetricKey).value}</TableCell>
                           <TableCell className="text-right">
                             {formatValue(metricCfg.costKey, getMetricValues(ad, primaryMetricKey).cost)}
@@ -708,7 +730,7 @@ export default function MetaAds() {
                       ))}
                       {paginatedAds.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                             Nenhum anúncio encontrado
                           </TableCell>
                         </TableRow>
@@ -762,28 +784,28 @@ export default function MetaAds() {
                         data={platformChartData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={45}
                         outerRadius={80}
-                        paddingAngle={3}
                         dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                       >
-                        {platformChartData.map((_: any, i: number) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                        {platformChartData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                         ))}
                       </Pie>
-                      <Legend iconSize={8} wrapperStyle={{ fontSize: "11px" }} />
                       <RechartsTooltip
+                        formatter={(value: number) => formatValue("spend", value)}
                         contentStyle={{
-                          background: "hsl(222, 47%, 10%)",
-                          border: "1px solid hsl(222, 47%, 16%)",
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
                           borderRadius: "8px",
                         }}
-                        formatter={(value: number) => formatValue("spend", value)}
                       />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Sem dados</div>
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                    Sem dados demográficos
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -791,39 +813,31 @@ export default function MetaAds() {
 
           <Card className="card-glow">
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Performance por Posicionamento</CardTitle>
+              <CardTitle className="text-lg">Investimento por Posição</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-64">
                 {positionChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={positionChartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={45}
-                        outerRadius={80}
-                        paddingAngle={3}
-                        dataKey="value"
-                      >
-                        {positionChartData.map((_: any, i: number) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Legend iconSize={8} wrapperStyle={{ fontSize: "11px" }} />
+                    <BarChart data={positionChartData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatValue("spend", v)} />
+                      <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={120} />
                       <RechartsTooltip
+                        formatter={(value: number) => formatValue("spend", value)}
                         contentStyle={{
-                          background: "hsl(222, 47%, 10%)",
-                          border: "1px solid hsl(222, 47%, 16%)",
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
                           borderRadius: "8px",
                         }}
-                        formatter={(value: number) => formatValue("spend", value)}
                       />
-                    </PieChart>
+                      <Bar dataKey="value" fill="hsl(214,89%,52%)" radius={[0, 4, 4, 0]} />
+                    </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Sem dados</div>
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                    Sem dados de posição
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -831,39 +845,31 @@ export default function MetaAds() {
 
           <Card className="card-glow">
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Performance por Idade</CardTitle>
+              <CardTitle className="text-lg">Distribuição por Idade</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-64">
                 {ageChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={ageChartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={45}
-                        outerRadius={80}
-                        paddingAngle={3}
-                        dataKey="value"
-                      >
-                        {ageChartData.map((_: any, i: number) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Legend iconSize={8} wrapperStyle={{ fontSize: "11px" }} />
+                    <BarChart data={ageChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatValue("spend", v)} />
                       <RechartsTooltip
+                        formatter={(value: number) => formatValue("spend", value)}
                         contentStyle={{
-                          background: "hsl(222, 47%, 10%)",
-                          border: "1px solid hsl(222, 47%, 16%)",
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
                           borderRadius: "8px",
                         }}
-                        formatter={(value: number) => formatValue("spend", value)}
                       />
-                    </PieChart>
+                      <Bar dataKey="value" fill="hsl(214,89%,52%)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Sem dados</div>
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                    Sem dados de idade
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -871,7 +877,7 @@ export default function MetaAds() {
 
           <Card className="card-glow">
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Performance por Gênero</CardTitle>
+              <CardTitle className="text-lg">Distribuição por Gênero</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-64">
@@ -882,28 +888,29 @@ export default function MetaAds() {
                         data={genderChartData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={45}
                         outerRadius={80}
-                        paddingAngle={3}
                         dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                       >
-                        {genderChartData.map((_: any, i: number) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                        {genderChartData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                         ))}
                       </Pie>
-                      <Legend iconSize={8} wrapperStyle={{ fontSize: "11px" }} />
                       <RechartsTooltip
+                        formatter={(value: number) => formatValue("spend", value)}
                         contentStyle={{
-                          background: "hsl(222, 47%, 10%)",
-                          border: "1px solid hsl(222, 47%, 16%)",
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
                           borderRadius: "8px",
                         }}
-                        formatter={(value: number) => formatValue("spend", value)}
                       />
+                      <Legend />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Sem dados</div>
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                    Sem dados de gênero
+                  </div>
                 )}
               </div>
             </CardContent>
