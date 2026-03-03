@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDashboardFilters, manualFetchOptions } from "@/hooks/useDashboardFilters";
+import TableFilters, { matchesName, matchesStatus } from "@/components/TableFilters";
 import {
   LineChart,
   Line,
@@ -138,6 +139,17 @@ export default function GoogleAds() {
   const [keywordPage, setKeywordPage] = useState(0);
   const pageSize = 10;
 
+  // ── Filtros de tabela ──
+  const googleStatusOptions = [
+    { value: "all", label: "Todos" },
+    { value: "ENABLED", label: "Ativo" },
+    { value: "PAUSED", label: "Pausado" },
+  ];
+  const [campaignNameFilter, setCampaignNameFilter] = useState("");
+  const [campaignStatusFilter, setCampaignStatusFilter] = useState("all");
+  const [keywordNameFilter, setKeywordNameFilter] = useState("");
+  const [keywordStatusFilter, setKeywordStatusFilter] = useState("all");
+
   const { data: client } = useQuery({
     queryKey: ["client", clientId],
     queryFn: async () => {
@@ -237,14 +249,24 @@ export default function GoogleAds() {
     enabled: !!clientId && isConnected && activeTab === "history",
   });
 
-  const paginatedCampaigns = campaignData
-    ? (campaignData as any[]).slice(campaignPage * pageSize, (campaignPage + 1) * pageSize)
+  const filteredCampaigns = campaignData
+    ? (campaignData as any[]).filter(
+        (c: any) =>
+          matchesName(c.campaign_name, campaignNameFilter) &&
+          matchesStatus(c.status, campaignStatusFilter),
+      )
     : [];
-  const totalCampaignPages = campaignData ? Math.ceil((campaignData as any[]).length / pageSize) : 0;
-  const paginatedKeywords = keywordData
-    ? (keywordData as any[]).slice(keywordPage * pageSize, (keywordPage + 1) * pageSize)
+  const paginatedCampaigns = filteredCampaigns.slice(campaignPage * pageSize, (campaignPage + 1) * pageSize);
+  const totalCampaignPages = Math.ceil(filteredCampaigns.length / pageSize);
+  const filteredKeywords = keywordData
+    ? (keywordData as any[]).filter(
+        (k: any) =>
+          matchesName(k.keyword_text, keywordNameFilter) &&
+          matchesStatus(k.status, keywordStatusFilter),
+      )
     : [];
-  const totalKeywordPages = keywordData ? Math.ceil((keywordData as any[]).length / pageSize) : 0;
+  const paginatedKeywords = filteredKeywords.slice(keywordPage * pageSize, (keywordPage + 1) * pageSize);
+  const totalKeywordPages = Math.ceil(filteredKeywords.length / pageSize);
 
   const funnelData = metrics
     ? [
@@ -388,6 +410,14 @@ export default function GoogleAds() {
                   </div>
                 ) : (
                   <>
+                    <TableFilters
+                      nameFilter={campaignNameFilter}
+                      onNameFilterChange={(v) => { setCampaignNameFilter(v); setCampaignPage(0); }}
+                      statusFilter={campaignStatusFilter}
+                      onStatusFilterChange={(v) => { setCampaignStatusFilter(v); setCampaignPage(0); }}
+                      namePlaceholder="Buscar campanha…"
+                      statusOptions={googleStatusOptions}
+                    />
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -476,6 +506,14 @@ export default function GoogleAds() {
                 </div>
               ) : (
                 <>
+                  <TableFilters
+                    nameFilter={keywordNameFilter}
+                    onNameFilterChange={(v) => { setKeywordNameFilter(v); setKeywordPage(0); }}
+                    statusFilter={keywordStatusFilter}
+                    onStatusFilterChange={(v) => { setKeywordStatusFilter(v); setKeywordPage(0); }}
+                    namePlaceholder="Buscar keyword…"
+                    statusOptions={googleStatusOptions}
+                  />
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -633,7 +671,16 @@ export default function GoogleAds() {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <Table>
+                <>
+                  <TableFilters
+                    nameFilter={campaignNameFilter}
+                    onNameFilterChange={(v) => { setCampaignNameFilter(v); setCampaignPage(0); }}
+                    statusFilter={campaignStatusFilter}
+                    onStatusFilterChange={(v) => { setCampaignStatusFilter(v); setCampaignPage(0); }}
+                    namePlaceholder="Buscar campanha…"
+                    statusOptions={googleStatusOptions}
+                  />
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Campanha</TableHead>
@@ -644,7 +691,7 @@ export default function GoogleAds() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {((campaignData as any[]) || []).map((c: any) => (
+                    {filteredCampaigns.map((c: any) => (
                       <TableRow key={c.campaign_id}>
                         <TableCell className="font-medium max-w-[250px] truncate">{c.campaign_name}</TableCell>
                         <TableCell>
@@ -659,6 +706,7 @@ export default function GoogleAds() {
                     ))}
                   </TableBody>
                 </Table>
+                </>
               )}
             </CardContent>
           </Card>

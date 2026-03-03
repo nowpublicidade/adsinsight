@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDashboardFilters, manualFetchOptions } from "@/hooks/useDashboardFilters";
+import TableFilters, { matchesName, matchesStatus } from "@/components/TableFilters";
 import {
   BarChart,
   Bar,
@@ -179,6 +180,12 @@ export default function MetaAds() {
   const [adPage, setAdPage] = useState(0);
   const pageSize = 10;
 
+  // ── Filtros de tabela ──
+  const [campaignNameFilter, setCampaignNameFilter] = useState("");
+  const [campaignStatusFilter, setCampaignStatusFilter] = useState("all");
+  const [adNameFilter, setAdNameFilter] = useState("");
+  const [adStatusFilter, setAdStatusFilter] = useState("all");
+
   const { data: client } = useQuery({
     queryKey: ["client", clientId],
     queryFn: async () => {
@@ -318,18 +325,23 @@ export default function MetaAds() {
       }))
     : [];
 
-  // ── Campaigns pagination ──
-  const paginatedCampaigns = campaignData
-    ? (campaignData as any[]).slice(campaignPage * pageSize, (campaignPage + 1) * pageSize)
+  // ── Campaigns filtered + pagination ──
+  const filteredCampaigns = campaignData
+    ? (campaignData as any[]).filter(
+        (c: any) =>
+          matchesName(c.campaign_name, campaignNameFilter) &&
+          matchesStatus(c.effective_status, campaignStatusFilter),
+      )
     : [];
-  const totalCampaignPages = campaignData ? Math.ceil((campaignData as any[]).length / pageSize) : 0;
+  const paginatedCampaigns = filteredCampaigns.slice(campaignPage * pageSize, (campaignPage + 1) * pageSize);
+  const totalCampaignPages = Math.ceil(filteredCampaigns.length / pageSize);
 
   // ── Métrica principal — DEVE vir antes do sortedAds ──
   const primaryMetricKey = (client as any)?.meta_primary_metric || "leads";
   const metricCfg = getMetricConfig(primaryMetricKey);
   const metricVal = metrics ? getMetricValues(metrics, primaryMetricKey) : { value: 0, cost: 0 };
 
-  // ── Ads ordenados do maior para o menor resultado ──
+  // ── Ads ordenados e filtrados ──
   const sortedAds = adsData
     ? [...(adsData as any[])].sort((a, b) => {
         const aVal = getMetricValues(a, primaryMetricKey).value ?? 0;
@@ -337,8 +349,12 @@ export default function MetaAds() {
         return bVal - aVal;
       })
     : [];
-  const paginatedAds = sortedAds.slice(adPage * pageSize, (adPage + 1) * pageSize);
-  const totalAdPages = Math.ceil(sortedAds.length / pageSize);
+  const filteredAds = sortedAds.filter(
+    (ad: any) =>
+      matchesName(ad.ad_name, adNameFilter) && matchesStatus(ad.effective_status, adStatusFilter),
+  );
+  const paginatedAds = filteredAds.slice(adPage * pageSize, (adPage + 1) * pageSize);
+  const totalAdPages = Math.ceil(filteredAds.length / pageSize);
 
   const funnelData = metrics
     ? [
@@ -477,6 +493,13 @@ export default function MetaAds() {
                   </div>
                 ) : (
                   <>
+                    <TableFilters
+                      nameFilter={campaignNameFilter}
+                      onNameFilterChange={(v) => { setCampaignNameFilter(v); setCampaignPage(0); }}
+                      statusFilter={campaignStatusFilter}
+                      onStatusFilterChange={(v) => { setCampaignStatusFilter(v); setCampaignPage(0); }}
+                      namePlaceholder="Buscar campanha…"
+                    />
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -678,6 +701,13 @@ export default function MetaAds() {
                 </div>
               ) : (
                 <>
+                  <TableFilters
+                    nameFilter={adNameFilter}
+                    onNameFilterChange={(v) => { setAdNameFilter(v); setAdPage(0); }}
+                    statusFilter={adStatusFilter}
+                    onStatusFilterChange={(v) => { setAdStatusFilter(v); setAdPage(0); }}
+                    namePlaceholder="Buscar anúncio…"
+                  />
                   <Table>
                     <TableHeader>
                       <TableRow>
