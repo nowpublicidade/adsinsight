@@ -2,75 +2,87 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
     const { client_id, date_preset, date_range, breakdown } = await req.json();
 
     if (!client_id) {
-      return new Response(
-        JSON.stringify({ error: 'client_id is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: "client_id is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Missing Supabase configuration');
+      throw new Error("Missing Supabase configuration");
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .select('meta_access_token, meta_ad_account_id, meta_token_expires_at')
-      .eq('id', client_id)
+      .from("clients")
+      .select("meta_access_token, meta_ad_account_id, meta_token_expires_at")
+      .eq("id", client_id)
       .single();
 
     if (clientError || !client) {
-      throw new Error('Client not found');
+      throw new Error("Client not found");
     }
 
     if (!client.meta_access_token || !client.meta_ad_account_id) {
-      return new Response(
-        JSON.stringify({ error: 'Meta Ads not connected' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: "Meta Ads not connected" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (client.meta_token_expires_at && new Date(client.meta_token_expires_at) < new Date()) {
-      return new Response(
-        JSON.stringify({ error: 'Meta token expired', code: 'TOKEN_EXPIRED' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: "Meta token expired", code: "TOKEN_EXPIRED" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    let dateParams = '';
+    let dateParams = "";
     if (date_preset) {
       dateParams = `&date_preset=${date_preset}`;
     } else if (date_range) {
       dateParams = `&time_range={"since":"${date_range.start}","until":"${date_range.end}"}`;
     } else {
-      dateParams = '&date_preset=last_7d';
+      dateParams = "&date_preset=last_7d";
     }
 
     const baseFields = [
-      'spend', 'impressions', 'reach', 'clicks', 'cpc', 'cpm', 'ctr', 'frequency',
-      'actions', 'action_values', 'cost_per_action_type', 'conversions', 'conversion_values', 'cost_per_conversion',
-    ].join(',');
+      "spend",
+      "impressions",
+      "reach",
+      "clicks",
+      "cpc",
+      "cpm",
+      "ctr",
+      "frequency",
+      "actions",
+      "action_values",
+      "cost_per_action_type",
+      "conversions",
+      "conversion_values",
+      "cost_per_conversion",
+    ].join(",");
 
     const accessToken = client.meta_access_token;
     const rawAdAccountId = client.meta_ad_account_id;
-    const adAccountId = rawAdAccountId.startsWith('act_') ? rawAdAccountId : `act_${rawAdAccountId}`;
+    const adAccountId = rawAdAccountId.startsWith("act_") ? rawAdAccountId : `act_${rawAdAccountId}`;
 
     // Helper functions
     const getActionValue = (actions: any[], ...actionTypes: string[]) => {
@@ -83,19 +95,54 @@ serve(async (req) => {
     };
 
     const processMetrics = (rawData: any) => {
-      const pixelLeads = getActionValue(rawData.actions, 'lead', 'offsite_conversion.fb_pixel_lead', 'omni_lead');
-      const messageLeads = getActionValue(rawData.actions, 'onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.lead_grouped', 'onsite_web_lead');
+      const pixelLeads = getActionValue(rawData.actions, "lead", "offsite_conversion.fb_pixel_lead", "omni_lead");
+      const messageLeads = getActionValue(
+        rawData.actions,
+        "onsite_conversion.messaging_conversation_started_7d",
+        "onsite_conversion.lead_grouped",
+        "onsite_web_lead",
+      );
       const totalLeads = pixelLeads + messageLeads;
       const spend = parseFloat(rawData.spend || 0);
-      const purchases = getActionValue(rawData.actions, 'purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase');
-      const purchaseValue = getActionValue(rawData.action_values, 'purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase');
-      const addToCart = getActionValue(rawData.actions, 'add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart', 'omni_add_to_cart');
-      const initiateCheckout = getActionValue(rawData.actions, 'initiate_checkout', 'offsite_conversion.fb_pixel_initiate_checkout', 'omni_initiated_checkout');
-      const viewContent = getActionValue(rawData.actions, 'view_content', 'offsite_conversion.fb_pixel_view_content', 'omni_view_content');
-      const completeRegistration = getActionValue(rawData.actions, 'complete_registration', 'offsite_conversion.fb_pixel_complete_registration', 'omni_complete_registration');
-      const linkClicks = getActionValue(rawData.actions, 'link_click');
-      const formLeads = getActionValue(rawData.actions, 'leadgen_grouped', 'onsite_conversion.lead_grouped');
-      
+      const purchases = getActionValue(
+        rawData.actions,
+        "purchase",
+        "offsite_conversion.fb_pixel_purchase",
+        "omni_purchase",
+      );
+      const purchaseValue = getActionValue(
+        rawData.action_values,
+        "purchase",
+        "offsite_conversion.fb_pixel_purchase",
+        "omni_purchase",
+      );
+      const addToCart = getActionValue(
+        rawData.actions,
+        "add_to_cart",
+        "offsite_conversion.fb_pixel_add_to_cart",
+        "omni_add_to_cart",
+      );
+      const initiateCheckout = getActionValue(
+        rawData.actions,
+        "initiate_checkout",
+        "offsite_conversion.fb_pixel_initiate_checkout",
+        "omni_initiated_checkout",
+      );
+      const viewContent = getActionValue(
+        rawData.actions,
+        "view_content",
+        "offsite_conversion.fb_pixel_view_content",
+        "omni_view_content",
+      );
+      const completeRegistration = getActionValue(
+        rawData.actions,
+        "complete_registration",
+        "offsite_conversion.fb_pixel_complete_registration",
+        "omni_complete_registration",
+      );
+      const linkClicks = getActionValue(rawData.actions, "link_click");
+      const formLeads = getActionValue(rawData.actions, "leadgen_grouped", "onsite_conversion.lead_grouped");
+
       // Results: sum all values from 'conversions' array (campaign objective results)
       let results = 0;
       if (rawData.conversions && Array.isArray(rawData.conversions)) {
@@ -139,60 +186,77 @@ serve(async (req) => {
     };
 
     // === BREAKDOWN: campaign ===
-    if (breakdown === 'campaign') {
+    if (breakdown === "campaign") {
       const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=campaign_name,campaign_id,${baseFields}${dateParams}&level=campaign&limit=50&access_token=${accessToken}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
 
-      const campaigns = (data.data || []).map((row: any) => ({
-        campaign_name: row.campaign_name,
-        campaign_id: row.campaign_id,
-        ...processMetrics(row),
-      }));
-
-      return new Response(
-        JSON.stringify({ campaigns }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      // Busca effective_status de cada campanha individualmente
+      const campaigns = await Promise.all(
+        (data.data || []).map(async (row: any) => {
+          let effective_status = null;
+          try {
+            const statusRes = await fetch(
+              `https://graph.facebook.com/v24.0/${row.campaign_id}?fields=effective_status&access_token=${accessToken}`,
+            );
+            const statusData = await statusRes.json();
+            effective_status = statusData.effective_status || null;
+          } catch (e) {
+            console.warn("Could not fetch status for campaign:", row.campaign_id);
+          }
+          return {
+            campaign_name: row.campaign_name,
+            campaign_id: row.campaign_id,
+            effective_status,
+            ...processMetrics(row),
+          };
+        }),
       );
+
+      return new Response(JSON.stringify({ campaigns }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // === BREAKDOWN: ad (with creative previews) ===
-    if (breakdown === 'ad') {
+    // === BREAKDOWN: ad (with creative previews + status) ===
+    if (breakdown === "ad") {
       const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=ad_name,ad_id,campaign_name,${baseFields}${dateParams}&level=ad&limit=50&access_token=${accessToken}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
 
-      // Fetch ad creative thumbnails for each ad
-      const ads = await Promise.all((data.data || []).map(async (row: any) => {
-        let thumbnail_url = null;
-        try {
-          const adDetailUrl = `https://graph.facebook.com/v24.0/${row.ad_id}?fields=creative{thumbnail_url,image_url}&access_token=${accessToken}`;
-          const adDetailRes = await fetch(adDetailUrl);
-          const adDetail = await adDetailRes.json();
-          thumbnail_url = adDetail?.creative?.image_url || adDetail?.creative?.thumbnail_url || null;
-        } catch (e) {
-          console.warn('Could not fetch creative for ad:', row.ad_id);
-        }
+      // Fetch ad creative thumbnails e effective_status para cada anúncio
+      const ads = await Promise.all(
+        (data.data || []).map(async (row: any) => {
+          let thumbnail_url = null;
+          let effective_status = null;
+          try {
+            const adDetailUrl = `https://graph.facebook.com/v24.0/${row.ad_id}?fields=creative{thumbnail_url,image_url},effective_status&access_token=${accessToken}`;
+            const adDetailRes = await fetch(adDetailUrl);
+            const adDetail = await adDetailRes.json();
+            thumbnail_url = adDetail?.creative?.image_url || adDetail?.creative?.thumbnail_url || null;
+            effective_status = adDetail?.effective_status || null;
+          } catch (e) {
+            console.warn("Could not fetch creative for ad:", row.ad_id);
+          }
 
-        return {
-          ad_name: row.ad_name,
-          ad_id: row.ad_id,
-          campaign_name: row.campaign_name,
-          thumbnail_url,
-          ...processMetrics(row),
-        };
-      }));
-
-      return new Response(
-        JSON.stringify({ ads }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          return {
+            ad_name: row.ad_name,
+            ad_id: row.ad_id,
+            campaign_name: row.campaign_name,
+            thumbnail_url,
+            effective_status,
+            ...processMetrics(row),
+          };
+        }),
       );
+
+      return new Response(JSON.stringify({ ads }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // === BREAKDOWN: daily ===
-    if (breakdown === 'daily') {
+    if (breakdown === "daily") {
       const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&time_increment=1&limit=90&access_token=${accessToken}`;
       const res = await fetch(url);
       const data = await res.json();
@@ -204,14 +268,13 @@ serve(async (req) => {
         ...processMetrics(row),
       }));
 
-      return new Response(
-        JSON.stringify({ daily }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ daily }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // === BREAKDOWN: demographics (age, gender) ===
-    if (breakdown === 'age_gender') {
+    if (breakdown === "age_gender") {
       const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&breakdowns=age,gender&limit=100&access_token=${accessToken}`;
       const res = await fetch(url);
       const data = await res.json();
@@ -223,14 +286,13 @@ serve(async (req) => {
         ...processMetrics(row),
       }));
 
-      return new Response(
-        JSON.stringify({ demographics }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ demographics }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // === BREAKDOWN: publisher_platform ===
-    if (breakdown === 'publisher_platform') {
+    if (breakdown === "publisher_platform") {
       const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&breakdowns=publisher_platform&limit=20&access_token=${accessToken}`;
       const res = await fetch(url);
       const data = await res.json();
@@ -241,14 +303,13 @@ serve(async (req) => {
         ...processMetrics(row),
       }));
 
-      return new Response(
-        JSON.stringify({ platforms }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ platforms }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // === BREAKDOWN: platform_position ===
-    if (breakdown === 'platform_position') {
+    if (breakdown === "platform_position") {
       const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&breakdowns=publisher_platform,platform_position&limit=50&access_token=${accessToken}`;
       const res = await fetch(url);
       const data = await res.json();
@@ -260,10 +321,9 @@ serve(async (req) => {
         ...processMetrics(row),
       }));
 
-      return new Response(
-        JSON.stringify({ positions }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ positions }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // === DEFAULT: aggregate metrics ===
@@ -272,23 +332,22 @@ serve(async (req) => {
     const insightsData = await insightsResponse.json();
 
     if (insightsData.error) {
-      console.error('Meta API error:', insightsData.error);
-      throw new Error(insightsData.error.message || 'Failed to fetch insights');
+      console.error("Meta API error:", insightsData.error);
+      throw new Error(insightsData.error.message || "Failed to fetch insights");
     }
 
     const rawData = insightsData.data?.[0] || {};
     const metrics = processMetrics(rawData);
 
-    return new Response(
-      JSON.stringify({ metrics, raw: rawData }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ metrics, raw: rawData }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
-    console.error('Error in meta-ads-insights:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error("Error in meta-ads-insights:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
