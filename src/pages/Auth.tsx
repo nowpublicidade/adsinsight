@@ -68,10 +68,8 @@ export default function Auth() {
       return;
     }
 
-    // Cliente ainda sem conta selecionada → tela de seleção
-    if (availableClients.length > 0) {
-      navigate('/account-select', { replace: true });
-    }
+    // Cliente sem conta selecionada → tela de seleção (que trata 0 contas também)
+    navigate('/account-select', { replace: true });
   }, [user, role, clientId, availableClients, loading, navigate]);
 
   const clearErrors = () => setErrors({});
