@@ -23,13 +23,9 @@ serve(async (req) => {
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Missing Supabase configuration");
-    }
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error("Missing Supabase configuration");
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
     const { data: client, error: clientError } = await supabase
       .from("clients")
       .select("meta_access_token, meta_ad_account_id, meta_token_expires_at")
@@ -37,14 +33,12 @@ serve(async (req) => {
       .single();
 
     if (clientError || !client) throw new Error("Client not found");
-
     if (!client.meta_access_token || !client.meta_ad_account_id) {
       return new Response(JSON.stringify({ error: "Meta Ads not connected" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
     if (client.meta_token_expires_at && new Date(client.meta_token_expires_at) < new Date()) {
       return new Response(JSON.stringify({ error: "Meta token expired", code: "TOKEN_EXPIRED" }), {
         status: 401,
@@ -52,114 +46,89 @@ serve(async (req) => {
       });
     }
 
-    // Parâmetro de data — usado tanto no dateParams quanto nos insights nested
-    let datePresetParam = "last_7d";
     let dateParams = "&date_preset=last_7d";
-    let nestedDateParam = "date_preset=last_7d";
-
     if (date_preset) {
-      datePresetParam = date_preset;
       dateParams = `&date_preset=${date_preset}`;
-      nestedDateParam = `date_preset=${date_preset}`;
     } else if (date_range) {
       dateParams = `&time_range={"since":"${date_range.start}","until":"${date_range.end}"}`;
-      nestedDateParam = `time_range={"since":"${date_range.start}","until":"${date_range.end}"}`;
     }
 
-    const insightFields = [
-      "spend",
-      "impressions",
-      "reach",
-      "clicks",
-      "cpc",
-      "cpm",
-      "ctr",
-      "frequency",
-      "actions",
-      "action_values",
-      "cost_per_action_type",
-      "conversions",
-      "conversion_values",
-      "cost_per_conversion",
-    ].join(",");
-
+    const baseFields =
+      "spend,impressions,reach,clicks,cpc,cpm,ctr,frequency,actions,action_values,cost_per_action_type,conversions,conversion_values,cost_per_conversion";
     const accessToken = client.meta_access_token;
     const rawAdAccountId = client.meta_ad_account_id;
     const adAccountId = rawAdAccountId.startsWith("act_") ? rawAdAccountId : `act_${rawAdAccountId}`;
 
-    // ── helpers ──────────────────────────────────────────────────────────────
-    const getActionValue = (actions: any[], ...actionTypes: string[]) => {
+    const getActionValue = (actions: any[], ...types: string[]) => {
       if (!actions) return 0;
-      for (const t of actionTypes) {
+      for (const t of types) {
         const a = actions.find((x: any) => x.action_type === t);
         if (a) return parseFloat(a.value);
       }
       return 0;
     };
 
-    const processMetrics = (rawData: any) => {
-      const pixelLeads = getActionValue(rawData.actions, "lead", "offsite_conversion.fb_pixel_lead", "omni_lead");
+    const processMetrics = (raw: any) => {
+      const pixelLeads = getActionValue(raw.actions, "lead", "offsite_conversion.fb_pixel_lead", "omni_lead");
       const messageLeads = getActionValue(
-        rawData.actions,
+        raw.actions,
         "onsite_conversion.messaging_conversation_started_7d",
         "onsite_conversion.lead_grouped",
         "onsite_web_lead",
       );
       const totalLeads = pixelLeads + messageLeads;
-      const spend = parseFloat(rawData.spend || 0);
+      const spend = parseFloat(raw.spend || 0);
       const purchases = getActionValue(
-        rawData.actions,
+        raw.actions,
         "purchase",
         "offsite_conversion.fb_pixel_purchase",
         "omni_purchase",
       );
       const purchaseValue = getActionValue(
-        rawData.action_values,
+        raw.action_values,
         "purchase",
         "offsite_conversion.fb_pixel_purchase",
         "omni_purchase",
       );
       const addToCart = getActionValue(
-        rawData.actions,
+        raw.actions,
         "add_to_cart",
         "offsite_conversion.fb_pixel_add_to_cart",
         "omni_add_to_cart",
       );
       const initiateCheckout = getActionValue(
-        rawData.actions,
+        raw.actions,
         "initiate_checkout",
         "offsite_conversion.fb_pixel_initiate_checkout",
         "omni_initiated_checkout",
       );
       const viewContent = getActionValue(
-        rawData.actions,
+        raw.actions,
         "view_content",
         "offsite_conversion.fb_pixel_view_content",
         "omni_view_content",
       );
       const completeRegistration = getActionValue(
-        rawData.actions,
+        raw.actions,
         "complete_registration",
         "offsite_conversion.fb_pixel_complete_registration",
         "omni_complete_registration",
       );
-      const linkClicks = getActionValue(rawData.actions, "link_click");
-      const formLeads = getActionValue(rawData.actions, "leadgen_grouped", "onsite_conversion.lead_grouped");
-
+      const linkClicks = getActionValue(raw.actions, "link_click");
+      const formLeads = getActionValue(raw.actions, "leadgen_grouped", "onsite_conversion.lead_grouped");
       let results = 0;
-      if (rawData.conversions && Array.isArray(rawData.conversions)) {
-        results = rawData.conversions.reduce((s: number, c: any) => s + parseFloat(c.value || 0), 0);
+      if (raw.conversions && Array.isArray(raw.conversions)) {
+        results = raw.conversions.reduce((s: number, c: any) => s + parseFloat(c.value || 0), 0);
       }
-
       return {
         spend,
-        impressions: parseInt(rawData.impressions || 0),
-        reach: parseInt(rawData.reach || 0),
-        clicks: parseInt(rawData.clicks || 0),
-        cpc: parseFloat(rawData.cpc || 0),
-        cpm: parseFloat(rawData.cpm || 0),
-        ctr: parseFloat(rawData.ctr || 0),
-        frequency: parseFloat(rawData.frequency || 0),
+        impressions: parseInt(raw.impressions || 0),
+        reach: parseInt(raw.reach || 0),
+        clicks: parseInt(raw.clicks || 0),
+        cpc: parseFloat(raw.cpc || 0),
+        cpm: parseFloat(raw.cpm || 0),
+        ctr: parseFloat(raw.ctr || 0),
+        frequency: parseFloat(raw.frequency || 0),
         leads: totalLeads,
         pixelLeads,
         messageLeads,
@@ -188,34 +157,37 @@ serve(async (req) => {
     };
 
     // ── BREAKDOWN: campaign ───────────────────────────────────────────────────
-    // Busca campanhas com effective_status + insights aninhados em UMA chamada
     if (breakdown === "campaign") {
-      const nestedInsights = encodeURIComponent(`insights.${nestedDateParam}{${insightFields}}`);
-      const url = `https://graph.facebook.com/v24.0/${adAccountId}/campaigns?fields=id,name,effective_status,${nestedInsights}&limit=50&access_token=${accessToken}`;
+      // 1. Busca insights agregados por campanha
+      const insightsUrl = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=campaign_name,campaign_id,${baseFields}${dateParams}&level=campaign&limit=50&access_token=${accessToken}`;
+      const insightsRes = await fetch(insightsUrl);
+      const insightsData = await insightsRes.json();
+      if (insightsData.error) throw new Error(insightsData.error.message);
 
-      console.log("[DEBUG] campaign URL:", url.replace(accessToken, "TOKEN"));
+      const rows: any[] = insightsData.data || [];
 
-      const res = await fetch(url);
-      const data = await res.json();
-
-      console.log("[DEBUG] campaign data sample:", JSON.stringify(data).substring(0, 800));
-
-      if (data.error) throw new Error(data.error.message);
-
-      const campaigns = (data.data || [])
-        .filter((c: any) => c.insights?.data?.[0]) // só campanhas com dados no período
-        .map((c: any) => {
-          const insightRow = c.insights.data[0];
+      // 2. Para cada campanha nos insights, busca o effective_status individualmente
+      //    Esse endpoint SEMPRE retorna o status independente do período
+      const campaigns = await Promise.all(
+        rows.map(async (row: any) => {
+          let effective_status: string | null = null;
+          try {
+            const statusUrl = `https://graph.facebook.com/v24.0/${row.campaign_id}?fields=effective_status&access_token=${accessToken}`;
+            const statusRes = await fetch(statusUrl);
+            const statusJson = await statusRes.json();
+            console.log(`[DEBUG] campaign ${row.campaign_id} status response:`, JSON.stringify(statusJson));
+            effective_status = statusJson.effective_status ?? null;
+          } catch (e) {
+            console.error(`[DEBUG] failed to fetch status for campaign ${row.campaign_id}:`, e);
+          }
           return {
-            campaign_name: c.name,
-            campaign_id: c.id,
-            effective_status: c.effective_status || null,
-            ...processMetrics(insightRow),
+            campaign_name: row.campaign_name,
+            campaign_id: row.campaign_id,
+            effective_status,
+            ...processMetrics(row),
           };
-        });
-
-      // Ordena por spend decrescente
-      campaigns.sort((a: any, b: any) => b.spend - a.spend);
+        }),
+      );
 
       return new Response(JSON.stringify({ campaigns }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -223,53 +195,55 @@ serve(async (req) => {
     }
 
     // ── BREAKDOWN: ad ─────────────────────────────────────────────────────────
-    // Busca anúncios com effective_status + creative + insights aninhados em UMA chamada
     if (breakdown === "ad") {
-      const nestedInsights = encodeURIComponent(`insights.${nestedDateParam}{${insightFields}}`);
-      const url = `https://graph.facebook.com/v24.0/${adAccountId}/ads?fields=id,name,effective_status,campaign{name},creative{thumbnail_url,image_url},${nestedInsights}&limit=50&access_token=${accessToken}`;
+      // 1. Busca insights agregados por anúncio
+      const insightsUrl = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=ad_name,ad_id,campaign_name,${baseFields}${dateParams}&level=ad&limit=50&access_token=${accessToken}`;
+      const insightsRes = await fetch(insightsUrl);
+      const insightsData = await insightsRes.json();
+      if (insightsData.error) throw new Error(insightsData.error.message);
 
-      console.log("[DEBUG] ads URL:", url.replace(accessToken, "TOKEN"));
+      const rows: any[] = insightsData.data || [];
 
-      const res = await fetch(url);
-      const data = await res.json();
-
-      console.log("[DEBUG] ads data sample:", JSON.stringify(data).substring(0, 800));
-
-      if (data.error) throw new Error(data.error.message);
-
-      const ads = (data.data || [])
-        .filter((a: any) => a.insights?.data?.[0]) // só anúncios com dados no período
-        .map((a: any) => {
-          const insightRow = a.insights.data[0];
+      // 2. Para cada anúncio nos insights, busca effective_status + creative individualmente
+      const ads = await Promise.all(
+        rows.map(async (row: any) => {
+          let effective_status: string | null = null;
+          let thumbnail_url: string | null = null;
+          try {
+            const detailUrl = `https://graph.facebook.com/v24.0/${row.ad_id}?fields=effective_status,creative{thumbnail_url,image_url}&access_token=${accessToken}`;
+            const detailRes = await fetch(detailUrl);
+            const detailJson = await detailRes.json();
+            console.log(`[DEBUG] ad ${row.ad_id} detail response:`, JSON.stringify(detailJson));
+            effective_status = detailJson.effective_status ?? null;
+            thumbnail_url = detailJson.creative?.image_url || detailJson.creative?.thumbnail_url || null;
+          } catch (e) {
+            console.error(`[DEBUG] failed to fetch detail for ad ${row.ad_id}:`, e);
+          }
           return {
-            ad_name: a.name,
-            ad_id: a.id,
-            campaign_name: a.campaign?.name || "",
-            effective_status: a.effective_status || null,
-            thumbnail_url: a.creative?.image_url || a.creative?.thumbnail_url || null,
-            ...processMetrics(insightRow),
+            ad_name: row.ad_name,
+            ad_id: row.ad_id,
+            campaign_name: row.campaign_name,
+            effective_status,
+            thumbnail_url,
+            ...processMetrics(row),
           };
-        });
-
-      // Ordena por spend decrescente
-      ads.sort((a: any, b: any) => b.spend - a.spend);
+        }),
+      );
 
       return new Response(JSON.stringify({ ads }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // ── BREAKDOWN: daily ──────────────────────────────────────────────────────
     if (breakdown === "daily") {
-      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${insightFields}${dateParams}&time_increment=1&limit=90&access_token=${accessToken}`;
+      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&time_increment=1&limit=90&access_token=${accessToken}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
-
       const daily = (data.data || []).map((row: any) => ({
         date_start: row.date_start,
         date_stop: row.date_stop,
         ...processMetrics(row),
       }));
-
       return new Response(JSON.stringify({ daily }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -277,17 +251,15 @@ serve(async (req) => {
 
     // ── BREAKDOWN: age_gender ─────────────────────────────────────────────────
     if (breakdown === "age_gender") {
-      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${insightFields}${dateParams}&breakdowns=age,gender&limit=100&access_token=${accessToken}`;
+      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&breakdowns=age,gender&limit=100&access_token=${accessToken}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
-
       const demographics = (data.data || []).map((row: any) => ({
         age: row.age,
         gender: row.gender,
         ...processMetrics(row),
       }));
-
       return new Response(JSON.stringify({ demographics }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -295,16 +267,14 @@ serve(async (req) => {
 
     // ── BREAKDOWN: publisher_platform ─────────────────────────────────────────
     if (breakdown === "publisher_platform") {
-      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${insightFields}${dateParams}&breakdowns=publisher_platform&limit=20&access_token=${accessToken}`;
+      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&breakdowns=publisher_platform&limit=20&access_token=${accessToken}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
-
       const platforms = (data.data || []).map((row: any) => ({
         publisher_platform: row.publisher_platform,
         ...processMetrics(row),
       }));
-
       return new Response(JSON.stringify({ platforms }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -312,42 +282,32 @@ serve(async (req) => {
 
     // ── BREAKDOWN: platform_position ──────────────────────────────────────────
     if (breakdown === "platform_position") {
-      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${insightFields}${dateParams}&breakdowns=publisher_platform,platform_position&limit=50&access_token=${accessToken}`;
+      const url = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&breakdowns=publisher_platform,platform_position&limit=50&access_token=${accessToken}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
-
       const positions = (data.data || []).map((row: any) => ({
         publisher_platform: row.publisher_platform,
         platform_position: row.platform_position,
         ...processMetrics(row),
       }));
-
       return new Response(JSON.stringify({ positions }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // ── DEFAULT: aggregate ────────────────────────────────────────────────────
-    const insightsUrl = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${insightFields}${dateParams}&access_token=${accessToken}`;
+    const insightsUrl = `https://graph.facebook.com/v24.0/${adAccountId}/insights?fields=${baseFields}${dateParams}&access_token=${accessToken}`;
     const insightsResponse = await fetch(insightsUrl);
     const insightsData = await insightsResponse.json();
-
-    if (insightsData.error) {
-      console.error("Meta API error:", insightsData.error);
-      throw new Error(insightsData.error.message || "Failed to fetch insights");
-    }
-
-    const rawData = insightsData.data?.[0] || {};
-    const metrics = processMetrics(rawData);
-
-    return new Response(JSON.stringify({ metrics, raw: rawData }), {
+    if (insightsData.error) throw new Error(insightsData.error.message || "Failed to fetch insights");
+    const metrics = processMetrics(insightsData.data?.[0] || {});
+    return new Response(JSON.stringify({ metrics, raw: insightsData.data?.[0] || {} }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
     console.error("Error in meta-ads-insights:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
