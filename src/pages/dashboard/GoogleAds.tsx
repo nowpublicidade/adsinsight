@@ -56,6 +56,23 @@ const formatValue = (key: string, value: number | undefined): string => {
   return value.toLocaleString("pt-BR");
 };
 
+// ── Badge de status Google ──
+function GoogleStatusBadge({ status }: { status?: string }) {
+  if (!status) return <span className="text-muted-foreground text-xs">—</span>;
+  const isActive = status === "ENABLED";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap",
+        isActive ? "bg-green-500/10 text-green-500" : "bg-yellow-500/10 text-yellow-500",
+      )}
+    >
+      <span className={cn("w-1.5 h-1.5 rounded-full", isActive ? "bg-green-500" : "bg-yellow-500")} />
+      {isActive ? "Ativo" : "Pausado"}
+    </span>
+  );
+}
+
 function KpiCard({
   label,
   value,
@@ -375,6 +392,7 @@ export default function GoogleAds() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Campanha</TableHead>
+                          <TableHead>Status</TableHead>
                           <TableHead className="text-right">Custo</TableHead>
                           <TableHead className="text-right">Conversões</TableHead>
                           <TableHead className="text-right">CPC</TableHead>
@@ -384,6 +402,9 @@ export default function GoogleAds() {
                         {paginatedCampaigns.map((c: any) => (
                           <TableRow key={c.campaign_id}>
                             <TableCell className="font-medium max-w-[200px] truncate">{c.campaign_name}</TableCell>
+                            <TableCell>
+                              <GoogleStatusBadge status={c.status} />
+                            </TableCell>
                             <TableCell className="text-right">{formatValue("cost", c.cost)}</TableCell>
                             <TableCell className="text-right">{c.conversions?.toFixed(1)}</TableCell>
                             <TableCell className="text-right">{formatValue("average_cpc", c.average_cpc)}</TableCell>
@@ -391,7 +412,7 @@ export default function GoogleAds() {
                         ))}
                         {paginatedCampaigns.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                            <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                               Nenhuma campanha encontrada
                             </TableCell>
                           </TableRow>
@@ -527,36 +548,33 @@ export default function GoogleAds() {
                 {dailyChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={dailyChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 47%, 16%)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(215, 20%, 55%)" }} />
-                      <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "hsl(215, 20%, 55%)" }} />
-                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "hsl(215, 20%, 55%)" }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                      <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                       <RechartsTooltip
                         contentStyle={{
-                          background: "hsl(222, 47%, 10%)",
-                          border: "1px solid hsl(222, 47%, 16%)",
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
                           borderRadius: "8px",
                         }}
                       />
+                      <Legend />
                       <Line
-                        yAxisId="left"
                         type="monotone"
                         dataKey="cost"
-                        stroke="hsl(4, 90%, 58%)"
-                        name="Custo"
-                        strokeWidth={2}
+                        stroke="hsl(142,71%,45%)"
+                        name="Custo (R$)"
                         dot={false}
+                        strokeWidth={2}
                       />
                       <Line
-                        yAxisId="right"
                         type="monotone"
                         dataKey="conversions"
-                        stroke="hsl(142, 76%, 36%)"
+                        stroke="hsl(200,95%,50%)"
                         name="Conversões"
-                        strokeWidth={2}
                         dot={false}
+                        strokeWidth={2}
                       />
-                      <Legend wrapperStyle={{ fontSize: "12px" }} />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
@@ -619,6 +637,7 @@ export default function GoogleAds() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Campanha</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead className="text-right">Custo</TableHead>
                       <TableHead className="text-right">Conv.</TableHead>
                       <TableHead className="text-right">Taxa Conv.</TableHead>
@@ -628,6 +647,9 @@ export default function GoogleAds() {
                     {((campaignData as any[]) || []).map((c: any) => (
                       <TableRow key={c.campaign_id}>
                         <TableCell className="font-medium max-w-[250px] truncate">{c.campaign_name}</TableCell>
+                        <TableCell>
+                          <GoogleStatusBadge status={c.status} />
+                        </TableCell>
                         <TableCell className="text-right">{formatValue("cost", c.cost)}</TableCell>
                         <TableCell className="text-right">{c.conversions?.toFixed(1)}</TableCell>
                         <TableCell className="text-right">
@@ -690,6 +712,7 @@ export default function GoogleAds() {
                     <TableRow>
                       <TableHead>Grupo</TableHead>
                       <TableHead className="text-xs text-muted-foreground">Campanha</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead className="text-right">Custo</TableHead>
                       <TableHead className="text-right">Cliques</TableHead>
                       <TableHead className="text-right">Conv.</TableHead>
@@ -701,6 +724,9 @@ export default function GoogleAds() {
                         <TableCell className="font-medium max-w-[180px] truncate">{ag.ad_group_name}</TableCell>
                         <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">
                           {ag.campaign_name}
+                        </TableCell>
+                        <TableCell>
+                          <GoogleStatusBadge status={ag.status} />
                         </TableCell>
                         <TableCell className="text-right">{formatValue("cost", ag.cost)}</TableCell>
                         <TableCell className="text-right">{ag.clicks}</TableCell>
@@ -723,34 +749,65 @@ export default function GoogleAds() {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Keyword</TableHead>
-                      <TableHead className="text-right">Custo</TableHead>
-                      <TableHead className="text-right">Cliques</TableHead>
-                      <TableHead className="text-right">Conv.</TableHead>
-                      <TableHead className="text-right">Taxa Conv.</TableHead>
-                      <TableHead className="text-right">CPC</TableHead>
-                      <TableHead className="text-right">CPM</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {((keywordData as any[]) || []).slice(0, 20).map((k: any, i: number) => (
-                      <TableRow key={i}>
-                        <TableCell className="font-medium">{k.keyword_text}</TableCell>
-                        <TableCell className="text-right">{formatValue("cost", k.cost)}</TableCell>
-                        <TableCell className="text-right">{k.clicks}</TableCell>
-                        <TableCell className="text-right">{k.conversions?.toFixed(1)}</TableCell>
-                        <TableCell className="text-right">
-                          {formatValue("conversion_rate", k.conversion_rate)}
-                        </TableCell>
-                        <TableCell className="text-right">{formatValue("average_cpc", k.average_cpc)}</TableCell>
-                        <TableCell className="text-right">{formatValue("average_cpm", k.average_cpm)}</TableCell>
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Keyword</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Custo</TableHead>
+                        <TableHead className="text-right">Cliques</TableHead>
+                        <TableHead className="text-right">Conv.</TableHead>
+                        <TableHead className="text-right">Taxa Conv.</TableHead>
+                        <TableHead className="text-right">CPC</TableHead>
+                        <TableHead className="text-right">CPM</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {((keywordData as any[]) || []).slice(0, 20).map((k: any, i: number) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{k.keyword_text}</TableCell>
+                          <TableCell>
+                            <GoogleStatusBadge status={k.status} />
+                          </TableCell>
+                          <TableCell className="text-right">{formatValue("cost", k.cost)}</TableCell>
+                          <TableCell className="text-right">{k.clicks}</TableCell>
+                          <TableCell className="text-right">{k.conversions?.toFixed(1)}</TableCell>
+                          <TableCell className="text-right">
+                            {formatValue("conversion_rate", k.conversion_rate)}
+                          </TableCell>
+                          <TableCell className="text-right">{formatValue("average_cpc", k.average_cpc)}</TableCell>
+                          <TableCell className="text-right">{formatValue("average_cpm", k.average_cpm)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {totalKeywordPages > 1 && (
+                    <div className="flex items-center justify-between mt-4">
+                      <span className="text-xs text-muted-foreground">
+                        Página {keywordPage + 1} de {totalKeywordPages}
+                      </span>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setKeywordPage((p) => Math.max(0, p - 1))}
+                          disabled={keywordPage === 0}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setKeywordPage((p) => Math.min(totalKeywordPages - 1, p + 1))}
+                          disabled={keywordPage >= totalKeywordPages - 1}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
@@ -801,77 +858,27 @@ export default function GoogleAds() {
                 {monthlyChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={monthlyChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 47%, 16%)" />
-                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(215, 20%, 55%)" }} />
-                      <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "hsl(215, 20%, 55%)" }} />
-                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "hsl(215, 20%, 55%)" }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                      <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                       <RechartsTooltip
                         contentStyle={{
-                          background: "hsl(222, 47%, 10%)",
-                          border: "1px solid hsl(222, 47%, 16%)",
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
                           borderRadius: "8px",
                         }}
                       />
-                      <Bar yAxisId="left" dataKey="cost" fill="hsl(4, 90%, 58%)" name="Custo" radius={[4, 4, 0, 0]} />
-                      <Bar
-                        yAxisId="right"
-                        dataKey="conversions"
-                        fill="hsl(142, 76%, 36%)"
-                        name="Conversões"
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Legend wrapperStyle={{ fontSize: "12px" }} />
+                      <Legend />
+                      <Bar dataKey="cost" fill="hsl(142,71%,45%)" name="Custo (R$)" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="conversions" fill="hsl(200,95%,50%)" name="Conversões" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                    {monthlyLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : "Sem dados históricos"}
+                    {monthlyLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : "Sem dados para o período"}
                   </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="card-glow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Histórico Mensal</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {monthlyLoading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Mês</TableHead>
-                      <TableHead className="text-right">Custo</TableHead>
-                      <TableHead className="text-right">Impressões</TableHead>
-                      <TableHead className="text-right">Cliques</TableHead>
-                      <TableHead className="text-right">Conversões</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {((monthlyData as any[]) || []).map((m: any, i: number) => (
-                      <TableRow key={i}>
-                        <TableCell className="font-medium">{m.month}</TableCell>
-                        <TableCell className="text-right">{formatValue("cost", m.cost)}</TableCell>
-                        <TableCell className="text-right">{m.impressions?.toLocaleString("pt-BR")}</TableCell>
-                        <TableCell className="text-right">{m.clicks?.toLocaleString("pt-BR")}</TableCell>
-                        <TableCell className="text-right">{m.conversions?.toFixed(1)}</TableCell>
-                      </TableRow>
-                    ))}
-                    {((monthlyData as any[]) || []).length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                          Sem dados históricos
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              )}
             </CardContent>
           </Card>
         </div>
