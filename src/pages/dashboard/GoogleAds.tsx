@@ -590,6 +590,14 @@ export default function GoogleAds() {
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                       <YAxis yAxisId="left" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                       <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                      <RechartsTooltip
+                        contentStyle={{
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px",
+                        }}
+                      />
+                      <Legend />
                       <Line
                         yAxisId="left"
                         type="monotone"

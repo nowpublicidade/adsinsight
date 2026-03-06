@@ -25,6 +25,7 @@ import {
   Facebook,
   TrendingUp,
   Activity,
+  ArrowLeftRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
