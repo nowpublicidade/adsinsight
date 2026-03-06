@@ -1,34 +1,28 @@
 
 
-# Adicionar metricas de compras na tabela de anuncios do Meta Ads
+## Plan: Dual Y-Axis for Temporal Charts + Funnel Conversion Rates
 
-## Resumo
-Na tabela "Performance por Criativos" da pagina Meta Ads (aba Anuncios), adicionar 4 colunas fixas: **Compras**, **Custo por Compra**, **ROAS** e **Valor de Conversao**. Essas colunas serao exibidas sempre, independente da metrica principal configurada.
+### Problem 1: Temporal Chart Scale
+The impressions line (e.g. 14,000+) dwarfs the metric line (e.g. 1-31), making the metric line flat near zero. The fix is to use **dual Y-axes** (left for impressions/cost, right for metric/conversions) so both lines are readable at their own scale.
 
-## Alteracoes
+### Problem 2: Funnel Conversion Rates
+The funnel shows absolute numbers but no conversion rates between steps. We'll add percentage labels between each funnel layer (e.g., Impressions -> Clicks = 2.8%).
 
-### Arquivo: `src/pages/dashboard/MetaAds.tsx`
+---
 
-**1. Cabecalho da tabela (linha ~613-621)**
-Adicionar 4 novos `TableHead` apos a coluna CTR:
-- Compras
-- Custo/Compra
-- ROAS
-- Valor Conversao
+### Changes
 
-**2. Corpo da tabela (linha ~624-646)**
-Adicionar 4 novos `TableCell` para cada anuncio:
-- `ad.purchases` (formatado como numero)
-- `ad.costPerPurchase` (formatado como moeda)
-- `ad.roas` (formatado como "X.XXx")
-- `ad.purchaseValue` (formatado como moeda)
+**1. Temporal Charts - Dual Y-Axis (`MetaAds.tsx`)**
+- Add a second `<YAxis>` with `yAxisId="right"` and `orientation="right"` for the metric line
+- Assign `yAxisId="left"` to impressions, `yAxisId="right"` to the primary metric
+- This gives each line its own scale
 
-**3. Colspan do "Nenhum anuncio encontrado" (linha ~650)**
-Atualizar o `colSpan` de 6 para 10 para cobrir todas as colunas.
+**2. Temporal Charts - Dual Y-Axis (`GoogleAds.tsx`)**
+- Same dual-axis approach for the daily chart (cost on left, conversions on right)
+- Same for the monthly BarChart if applicable
 
-**4. Formatacao de ROAS**
-Adicionar tratamento especial no `formatValue` para a chave `roas`, formatando como "X.XXx" (ex: "3.45x").
-
-### Dados
-A edge function `meta-ads-insights` ja retorna `purchases`, `costPerPurchase`, `roas` e `purchaseValue` no breakdown por anuncio, pois o `processMetrics` e aplicado a cada linha. Nenhuma alteracao no backend e necessaria.
+**3. Funnel Conversion Rates (`FunnelChart.tsx`)**
+- Between each funnel layer, render a small label showing the conversion rate: `(previous.value → current.value) / previous.value * 100`
+- Display as a small badge/pill between layers, e.g. "2.84%"
+- Apply to both Meta and Google funnels (same component)
 
