@@ -607,16 +607,10 @@ export default function MetaAds() {
                     <LineChart data={dailyChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                      <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                      <RechartsTooltip
-                        contentStyle={{
-                          background: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px",
-                        }}
-                      />
-                      <Legend />
+                      <YAxis yAxisId="left" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                       <Line
+                        yAxisId="left"
                         type="monotone"
                         dataKey="impressions"
                         stroke="hsl(214,89%,52%)"
@@ -625,6 +619,7 @@ export default function MetaAds() {
                         strokeWidth={2}
                       />
                       <Line
+                        yAxisId="right"
                         type="monotone"
                         dataKey="metric"
                         stroke="hsl(142,76%,36%)"
