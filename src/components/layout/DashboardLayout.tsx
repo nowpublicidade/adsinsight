@@ -25,6 +25,7 @@ import {
   Facebook,
   TrendingUp,
   Activity,
+  ArrowLeftRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -45,7 +46,7 @@ const bottomNavItems = [
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, role, signOut } = useAuth();
+  const { user, role, availableClients, clientId, clearSelectedClient, signOut } = useAuth();
   const connections = useClientConnections();
   const location = useLocation();
   const navigate = useNavigate();
@@ -64,6 +65,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     await signOut();
     navigate("/auth");
   };
+
+  const handleSwitchAccount = () => {
+    clearSelectedClient();
+    navigate("/account-select");
+  };
+
+  const currentClient = availableClients.find((c) => c.id === clientId);
+  const canSwitchAccount = !isAdmin && availableClients.length > 1;
 
   const userInitials = user?.email?.substring(0, 2).toUpperCase() || "U";
 
@@ -127,10 +136,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-0.5">
                   <p className="text-sm font-medium truncate">{user?.email}</p>
+                  {currentClient && <p className="text-xs text-muted-foreground">{currentClient.name}</p>}
                   <p className="text-xs text-muted-foreground capitalize">{role}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {canSwitchAccount && (
+                <DropdownMenuItem onClick={handleSwitchAccount}>
+                  <ArrowLeftRight className="mr-2 h-4 w-4" />
+                  Trocar de conta
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sair
@@ -216,10 +232,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-0.5">
                   <p className="text-sm font-medium truncate">{user?.email}</p>
+                  {currentClient && <p className="text-xs text-muted-foreground">{currentClient.name}</p>}
                   <p className="text-xs text-muted-foreground capitalize">{role}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {canSwitchAccount && (
+                <DropdownMenuItem onClick={handleSwitchAccount}>
+                  <ArrowLeftRight className="mr-2 h-4 w-4" />
+                  Trocar de conta
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sair
