@@ -232,10 +232,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-0.5">
                   <p className="text-sm font-medium truncate">{user?.email}</p>
+                  {currentClient && <p className="text-xs text-muted-foreground">{currentClient.name}</p>}
                   <p className="text-xs text-muted-foreground capitalize">{role}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {canSwitchAccount && (
+                <DropdownMenuItem onClick={handleSwitchAccount}>
+                  <ArrowLeftRight className="mr-2 h-4 w-4" />
+                  Trocar de conta
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sair
