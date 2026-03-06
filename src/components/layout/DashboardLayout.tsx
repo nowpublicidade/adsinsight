@@ -66,6 +66,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     navigate("/auth");
   };
 
+  const handleSwitchAccount = () => {
+    clearSelectedClient();
+    navigate("/account-select");
+  };
+
+  const currentClient = availableClients.find((c) => c.id === clientId);
+  const canSwitchAccount = !isAdmin && availableClients.length > 1;
+
   const userInitials = user?.email?.substring(0, 2).toUpperCase() || "U";
 
   const isActive = (href: string) => {
