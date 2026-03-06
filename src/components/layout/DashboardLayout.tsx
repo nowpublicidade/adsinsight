@@ -46,7 +46,7 @@ const bottomNavItems = [
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, role, signOut } = useAuth();
+  const { user, role, availableClients, clientId, clearSelectedClient, signOut } = useAuth();
   const connections = useClientConnections();
   const location = useLocation();
   const navigate = useNavigate();
