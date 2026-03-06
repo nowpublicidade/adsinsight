@@ -36,31 +36,44 @@ export default function FunnelChart({ data, colorScheme = 'google' }: FunnelChar
   return (
     <div className="flex flex-col items-center gap-0 py-4">
       {data.map((item, i) => {
-        // Each layer gets progressively narrower
         const widthPercent = 100 - (i * (60 / Math.max(data.length - 1, 1)));
         const gradient = colors[i % colors.length];
 
+        // Calculate conversion rate from previous step
+        const conversionRate = i > 0 && data[i - 1].value > 0
+          ? ((item.value / data[i - 1].value) * 100)
+          : null;
+
         return (
-          <div
-            key={item.label}
-            className={cn(
-              'relative flex flex-col items-center justify-center py-4 rounded-xl transition-all duration-500',
-              'bg-gradient-to-r shadow-lg',
-              gradient,
-              i > 0 && '-mt-2'
+          <div key={item.label} className="flex flex-col items-center w-full">
+            {/* Conversion rate badge between layers */}
+            {conversionRate !== null && (
+              <div className="flex items-center justify-center -my-1 z-10 relative">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground border border-border shadow-sm">
+                  ↓ {conversionRate < 0.01 ? '<0.01' : conversionRate.toFixed(2)}%
+                </span>
+              </div>
             )}
-            style={{
-              width: `${widthPercent}%`,
-              minHeight: '72px',
-              zIndex: data.length - i,
-            }}
-          >
-            <span className="text-xs font-medium text-white/80 uppercase tracking-wider">
-              {item.label}
-            </span>
-            <span className="text-2xl font-bold text-white">
-              {item.value.toLocaleString('pt-BR')}
-            </span>
+            <div
+              className={cn(
+                'relative flex flex-col items-center justify-center py-4 rounded-xl transition-all duration-500',
+                'bg-gradient-to-r shadow-lg',
+                gradient,
+                i > 0 && 'mt-0'
+              )}
+              style={{
+                width: `${widthPercent}%`,
+                minHeight: '72px',
+                zIndex: data.length - i,
+              }}
+            >
+              <span className="text-xs font-medium text-white/80 uppercase tracking-wider">
+                {item.label}
+              </span>
+              <span className="text-2xl font-bold text-white">
+                {item.value.toLocaleString('pt-BR')}
+              </span>
+            </div>
           </div>
         );
       })}
