@@ -122,7 +122,7 @@ function KpiCard({
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         ) : (
           <>
-            <div className="text-xl font-bold">{value}</div>
+            <div className="text-lg font-bold">{value}</div>
             {variation !== undefined && (
               <div className="flex items-center gap-1 mt-1">
                 <div
