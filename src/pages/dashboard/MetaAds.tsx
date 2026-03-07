@@ -618,6 +618,7 @@ export default function MetaAds() {
                       />
                       <Legend />
                       <Line
+                        yAxisId="left"
                         type="monotone"
                         dataKey="impressions"
                         stroke="hsl(214,89%,52%)"
