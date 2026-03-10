@@ -27,6 +27,7 @@ import {
   Activity,
   ArrowLeftRight,
   Lightbulb,
+  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
