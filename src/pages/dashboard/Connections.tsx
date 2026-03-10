@@ -289,10 +289,46 @@ export default function Connections() {
     }
   };
 
+  // Page selection mutation
+  const selectPageMutation = useMutation({
+    mutationFn: async (page: { id: string; name: string; access_token: string; instagram_business_account: string | null }) => {
+      if (!effectiveClientId) throw new Error("No client ID");
+      const updates: Record<string, any> = {
+        fb_page_id: page.id,
+        fb_page_token: page.access_token,
+      };
+      if (page.instagram_business_account) {
+        updates.ig_account_id = page.instagram_business_account;
+        updates.ig_connected_at = new Date().toISOString();
+      }
+      const { error } = await supabase.from("clients").update(updates).eq("id", effectiveClientId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client", effectiveClientId] });
+      queryClient.invalidateQueries({ queryKey: ["client-connections"] });
+      setShowPageSelector(false);
+      toast.success("Página selecionada com sucesso!");
+    },
+    onError: (error) => toast.error("Erro ao selecionar página: " + error.message),
+  });
+
+  // Check URL params for page selection prompt
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("social_meta") === "select_page") {
+      setShowPageSelector(true);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  const availablePages = (client as any)?.fb_available_pages as Array<{ id: string; name: string; access_token: string; instagram_business_account: string | null; picture: string | null }> || [];
+
   const isMetaConnected = !!client?.meta_connected_at;
   const isGoogleConnected = !!client?.google_connected_at;
   const isAnalyticsConnected = !!(client as any)?.ga_connected_at;
   const isSocialMetaConnected = !!(client as any)?.fb_page_connected_at;
+  const isSocialPageSelected = !!(client as any)?.fb_page_id;
   const isInstagramConnected = !!(client as any)?.ig_connected_at;
   const isLinkedinConnected = !!(client as any)?.linkedin_connected_at;
   const hasNoClient = !effectiveClientId;
