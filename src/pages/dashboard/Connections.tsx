@@ -806,11 +806,31 @@ export default function Connections() {
                 <>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>Conectado em: {(client as any)?.fb_page_connected_at ? new Date((client as any).fb_page_connected_at).toLocaleDateString("pt-BR") : "N/A"}</p>
+                    {isSocialPageSelected ? (
+                      <p>Página: <span className="font-medium text-foreground">{availablePages.find(p => p.id === (client as any)?.fb_page_id)?.name || (client as any)?.fb_page_id}</span></p>
+                    ) : (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30">
+                        <Info className="h-4 w-4 text-warning flex-shrink-0" />
+                        <p className="text-sm text-warning">Selecione uma página para exibir as métricas</p>
+                      </div>
+                    )}
                     {isInstagramConnected && <p>Instagram vinculado ✓</p>}
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => disconnectMutation.mutate("social_meta")} disabled={disconnectMutation.isPending}>
-                    <Unlink className="h-4 w-4 mr-2" /> Desconectar
-                  </Button>
+                  <div className="flex gap-2">
+                    {availablePages.length > 1 && (
+                      <Button variant="outline" size="sm" onClick={() => setShowPageSelector(true)}>
+                        Trocar Página
+                      </Button>
+                    )}
+                    {!isSocialPageSelected && availablePages.length > 0 && (
+                      <Button variant="default" size="sm" onClick={() => setShowPageSelector(true)}>
+                        Selecionar Página
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => disconnectMutation.mutate("social_meta")} disabled={disconnectMutation.isPending}>
+                      <Unlink className="h-4 w-4 mr-2" /> Desconectar
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <>
