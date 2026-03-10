@@ -18,6 +18,9 @@ export type Database = {
         Row: {
           created_at: string
           email: string | null
+          fb_page_connected_at: string | null
+          fb_page_id: string | null
+          fb_page_token: string | null
           ga_access_token: string | null
           ga_connected_at: string | null
           ga_property_id: string | null
@@ -29,6 +32,13 @@ export type Database = {
           google_refresh_token: string | null
           google_token_expires_at: string | null
           id: string
+          ig_account_id: string | null
+          ig_connected_at: string | null
+          linkedin_access_token: string | null
+          linkedin_connected_at: string | null
+          linkedin_org_id: string | null
+          linkedin_refresh_token: string | null
+          linkedin_token_expires_at: string | null
           logo_url: string | null
           meta_access_token: string | null
           meta_ad_account_id: string | null
@@ -44,6 +54,9 @@ export type Database = {
         Insert: {
           created_at?: string
           email?: string | null
+          fb_page_connected_at?: string | null
+          fb_page_id?: string | null
+          fb_page_token?: string | null
           ga_access_token?: string | null
           ga_connected_at?: string | null
           ga_property_id?: string | null
@@ -55,6 +68,13 @@ export type Database = {
           google_refresh_token?: string | null
           google_token_expires_at?: string | null
           id?: string
+          ig_account_id?: string | null
+          ig_connected_at?: string | null
+          linkedin_access_token?: string | null
+          linkedin_connected_at?: string | null
+          linkedin_org_id?: string | null
+          linkedin_refresh_token?: string | null
+          linkedin_token_expires_at?: string | null
           logo_url?: string | null
           meta_access_token?: string | null
           meta_ad_account_id?: string | null
@@ -70,6 +90,9 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string | null
+          fb_page_connected_at?: string | null
+          fb_page_id?: string | null
+          fb_page_token?: string | null
           ga_access_token?: string | null
           ga_connected_at?: string | null
           ga_property_id?: string | null
@@ -81,6 +104,13 @@ export type Database = {
           google_refresh_token?: string | null
           google_token_expires_at?: string | null
           id?: string
+          ig_account_id?: string | null
+          ig_connected_at?: string | null
+          linkedin_access_token?: string | null
+          linkedin_connected_at?: string | null
+          linkedin_org_id?: string | null
+          linkedin_refresh_token?: string | null
+          linkedin_token_expires_at?: string | null
           logo_url?: string | null
           meta_access_token?: string | null
           meta_ad_account_id?: string | null

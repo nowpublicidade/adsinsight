@@ -47,6 +47,8 @@ export default function Connections() {
   const [connectingMeta, setConnectingMeta] = useState(false);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [connectingAnalytics, setConnectingAnalytics] = useState(false);
+  const [connectingSocialMeta, setConnectingSocialMeta] = useState(false);
+  const [connectingLinkedin, setConnectingLinkedin] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>(clientId || "");
 
   // Account ID states
@@ -114,38 +116,29 @@ export default function Connections() {
   });
 
   const disconnectMutation = useMutation({
-    mutationFn: async (platform: "meta" | "google" | "analytics") => {
+    mutationFn: async (platform: "meta" | "google" | "analytics" | "social_meta" | "linkedin") => {
       if (!effectiveClientId) throw new Error("No client ID");
 
-      const updates =
-        platform === "meta"
-          ? {
-              meta_access_token: null,
-              meta_token_expires_at: null,
-              meta_user_id: null,
-              meta_connected_at: null,
-            }
-          : platform === "google"
-          ? {
-              google_access_token: null,
-              google_refresh_token: null,
-              google_token_expires_at: null,
-              google_connected_at: null,
-            }
-          : {
-              ga_access_token: null,
-              ga_refresh_token: null,
-              ga_token_expires_at: null,
-              ga_connected_at: null,
-            };
+      let updates: Record<string, any> = {};
+      if (platform === "meta") {
+        updates = { meta_access_token: null, meta_token_expires_at: null, meta_user_id: null, meta_connected_at: null };
+      } else if (platform === "google") {
+        updates = { google_access_token: null, google_refresh_token: null, google_token_expires_at: null, google_connected_at: null };
+      } else if (platform === "analytics") {
+        updates = { ga_access_token: null, ga_refresh_token: null, ga_token_expires_at: null, ga_connected_at: null };
+      } else if (platform === "social_meta") {
+        updates = { fb_page_id: null, fb_page_token: null, fb_page_connected_at: null, ig_account_id: null, ig_connected_at: null };
+      } else if (platform === "linkedin") {
+        updates = { linkedin_access_token: null, linkedin_refresh_token: null, linkedin_org_id: null, linkedin_connected_at: null, linkedin_token_expires_at: null };
+      }
 
       const { error } = await supabase.from("clients").update(updates).eq("id", effectiveClientId);
-
       if (error) throw error;
     },
     onSuccess: (_, platform) => {
       queryClient.invalidateQueries({ queryKey: ["client", effectiveClientId] });
-      const names = { meta: "Meta Ads", google: "Google Ads", analytics: "Google Analytics" };
+      queryClient.invalidateQueries({ queryKey: ["client-connections"] });
+      const names: Record<string, string> = { meta: "Meta Ads", google: "Google Ads", analytics: "Google Analytics", social_meta: "Facebook/Instagram", linkedin: "LinkedIn" };
       toast.success(`${names[platform]} desconectado`);
     },
     onError: (error) => {
@@ -260,9 +253,46 @@ export default function Connections() {
     }
   };
 
+  const handleConnectSocialMeta = async () => {
+    if (!effectiveClientId) { toast.error("Selecione um cliente"); return; }
+    setConnectingSocialMeta(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("social-meta-oauth-start", {
+        body: { client_id: effectiveClientId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (data?.authUrl) window.location.href = data.authUrl;
+      else throw new Error("URL de autorização não recebida");
+    } catch (error: any) {
+      toast.error("Erro ao iniciar conexão: " + error.message);
+      setConnectingSocialMeta(false);
+    }
+  };
+
+  const handleConnectLinkedin = async () => {
+    if (!effectiveClientId) { toast.error("Selecione um cliente"); return; }
+    setConnectingLinkedin(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("linkedin-oauth-start", {
+        body: { client_id: effectiveClientId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (data?.authUrl) window.location.href = data.authUrl;
+      else throw new Error("URL de autorização não recebida");
+    } catch (error: any) {
+      toast.error("Erro ao iniciar conexão: " + error.message);
+      setConnectingLinkedin(false);
+    }
+  };
+
   const isMetaConnected = !!client?.meta_connected_at;
   const isGoogleConnected = !!client?.google_connected_at;
   const isAnalyticsConnected = !!(client as any)?.ga_connected_at;
+  const isSocialMetaConnected = !!(client as any)?.fb_page_connected_at;
+  const isInstagramConnected = !!(client as any)?.ig_connected_at;
+  const isLinkedinConnected = !!(client as any)?.linkedin_connected_at;
   const hasNoClient = !effectiveClientId;
 
   if (isLoading && effectiveClientId) {
@@ -698,6 +728,114 @@ export default function Connections() {
                       </TooltipContent>
                     )}
                   </Tooltip>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+
+          {/* Facebook/Instagram (Social) Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-xl bg-[hsl(330,70%,55%)]/10 flex items-center justify-center text-[hsl(330,70%,55%)]">
+                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
+                      <path d="M12 2c2.717 0 3.056.01 4.122.06 1.065.05 1.79.217 2.428.465.66.254 1.216.598 1.772 1.153a4.908 4.908 0 0 1 1.153 1.772c.247.637.415 1.363.465 2.428.047 1.066.06 1.405.06 4.122 0 2.717-.01 3.056-.06 4.122-.05 1.065-.218 1.79-.465 2.428a4.883 4.883 0 0 1-1.153 1.772 4.915 4.915 0 0 1-1.772 1.153c-.637.247-1.363.415-2.428.465-1.066.047-1.405.06-4.122.06-2.717 0-3.056-.01-4.122-.06-1.065-.05-1.79-.218-2.428-.465a4.89 4.89 0 0 1-1.772-1.153 4.904 4.904 0 0 1-1.153-1.772c-.248-.637-.415-1.363-.465-2.428C2.013 15.056 2 14.717 2 12c0-2.717.01-3.056.06-4.122.05-1.066.217-1.79.465-2.428a4.88 4.88 0 0 1 1.153-1.772A4.897 4.897 0 0 1 5.45 2.525c.638-.248 1.362-.415 2.428-.465C8.944 2.013 9.283 2 12 2zm0 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.25a1.25 1.25 0 1 0-2.5 0 1.25 1.25 0 0 0 2.5 0zM12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <CardTitle>Facebook / Instagram</CardTitle>
+                    <CardDescription>Métricas orgânicas</CardDescription>
+                  </div>
+                </div>
+                {effectiveClientId &&
+                  (isSocialMetaConnected ? (
+                    <Badge className="connection-connected">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Conectado
+                    </Badge>
+                  ) : (
+                    <Badge className="connection-disconnected">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Desconectado
+                    </Badge>
+                  ))}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isSocialMetaConnected ? (
+                <>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p>Conectado em: {(client as any)?.fb_page_connected_at ? new Date((client as any).fb_page_connected_at).toLocaleDateString("pt-BR") : "N/A"}</p>
+                    {isInstagramConnected && <p>Instagram vinculado ✓</p>}
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => disconnectMutation.mutate("social_meta")} disabled={disconnectMutation.isPending}>
+                    <Unlink className="h-4 w-4 mr-2" /> Desconectar
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Conecte sua Página do Facebook e Instagram Business para visualizar métricas orgânicas como alcance, seguidores e melhores posts.
+                  </p>
+                  <Button className="w-full btn-glow" onClick={handleConnectSocialMeta} disabled={connectingSocialMeta || hasNoClient}>
+                    {connectingSocialMeta ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-2" />}
+                    Conectar Facebook/Instagram
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* LinkedIn Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-xl bg-[hsl(210,80%,45%)]/10 flex items-center justify-center text-[hsl(210,80%,45%)]">
+                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
+                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <CardTitle>LinkedIn</CardTitle>
+                    <CardDescription>Página da empresa</CardDescription>
+                  </div>
+                </div>
+                {effectiveClientId &&
+                  (isLinkedinConnected ? (
+                    <Badge className="connection-connected">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Conectado
+                    </Badge>
+                  ) : (
+                    <Badge className="connection-disconnected">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Desconectado
+                    </Badge>
+                  ))}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isLinkedinConnected ? (
+                <>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p>Conectado em: {(client as any)?.linkedin_connected_at ? new Date((client as any).linkedin_connected_at).toLocaleDateString("pt-BR") : "N/A"}</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => disconnectMutation.mutate("linkedin")} disabled={disconnectMutation.isPending}>
+                    <Unlink className="h-4 w-4 mr-2" /> Desconectar
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Conecte sua página do LinkedIn para visualizar seguidores, impressões e melhores posts.
+                  </p>
+                  <Button className="w-full btn-glow" onClick={handleConnectLinkedin} disabled={connectingLinkedin || hasNoClient}>
+                    {connectingLinkedin ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-2" />}
+                    Conectar LinkedIn
+                  </Button>
                 </>
               )}
             </CardContent>

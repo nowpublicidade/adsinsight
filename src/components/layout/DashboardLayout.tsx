@@ -27,6 +27,7 @@ import {
   Activity,
   ArrowLeftRight,
   Lightbulb,
+  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -56,11 +57,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const isAdmin = role === "admin";
 
   // Nav items filtrados pelas conexões ativas do cliente
+  const hasSocial = connections.facebook || connections.instagram || connections.linkedin;
+
   const platformNavItems = [
     { href: "/dashboard", label: "Home", icon: LayoutDashboard },
     ...(connections.meta ? [{ href: "/dashboard/meta", label: "Meta Ads", icon: Facebook }] : []),
     ...(connections.google ? [{ href: "/dashboard/google", label: "Google Ads", icon: TrendingUp }] : []),
     ...(connections.analytics ? [{ href: "/dashboard/analytics", label: "Analytics", icon: Activity }] : []),
+    ...(hasSocial ? [{ href: "/dashboard/social-media", label: "Redes Sociais", icon: Share2 }] : []),
   ];
 
   const handleSignOut = async () => {
