@@ -1,34 +1,73 @@
 
 
-# Adicionar metricas de compras na tabela de anuncios do Meta Ads
+## Plano: Página de Otimizações
 
-## Resumo
-Na tabela "Performance por Criativos" da pagina Meta Ads (aba Anuncios), adicionar 4 colunas fixas: **Compras**, **Custo por Compra**, **ROAS** e **Valor de Conversao**. Essas colunas serao exibidas sempre, independente da metrica principal configurada.
+### Resumo
+Criar uma nova seção "Otimizações" no dashboard com duas telas:
+1. **Listagem** — tabela com todos os registros de otimização do cliente
+2. **Formulário** — tela para criar/editar uma otimização
 
-## Alteracoes
+Cada registro é vinculado a um `client_id`, garantindo isolamento por conta.
 
-### Arquivo: `src/pages/dashboard/MetaAds.tsx`
+---
 
-**1. Cabecalho da tabela (linha ~613-621)**
-Adicionar 4 novos `TableHead` apos a coluna CTR:
-- Compras
-- Custo/Compra
-- ROAS
-- Valor Conversao
+### 1. Banco de Dados — Nova tabela `optimizations`
 
-**2. Corpo da tabela (linha ~624-646)**
-Adicionar 4 novos `TableCell` para cada anuncio:
-- `ad.purchases` (formatado como numero)
-- `ad.costPerPurchase` (formatado como moeda)
-- `ad.roas` (formatado como "X.XXx")
-- `ad.purchaseValue` (formatado como moeda)
+```sql
+CREATE TABLE public.optimizations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id uuid NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
+  objective text NOT NULL,          -- Objetivo do plano
+  hypothesis text NOT NULL,         -- Hipótese
+  applied_test text NOT NULL,       -- Teste aplicado
+  notes text,                       -- Nota
+  final_result text,                -- Resultado final
+  status text NOT NULL DEFAULT 'em_progresso',  -- em_progresso | concluido
+  start_date date NOT NULL DEFAULT CURRENT_DATE,
+  next_analysis_date date,          -- Data da próxima análise
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 
-**3. Colspan do "Nenhum anuncio encontrado" (linha ~650)**
-Atualizar o `colSpan` de 6 para 10 para cobrir todas as colunas.
+ALTER TABLE public.optimizations ENABLE ROW LEVEL SECURITY;
+```
 
-**4. Formatacao de ROAS**
-Adicionar tratamento especial no `formatValue` para a chave `roas`, formatando como "X.XXx" (ex: "3.45x").
+**RLS Policies:**
+- Admin: ALL (usando `has_role`)
+- Cliente: SELECT/INSERT/UPDATE/DELETE onde `client_id = current_user_client_id()`
 
-### Dados
-A edge function `meta-ads-insights` ja retorna `purchases`, `costPerPurchase`, `roas` e `purchaseValue` no breakdown por anuncio, pois o `processMetrics` e aplicado a cada linha. Nenhuma alteracao no backend e necessaria.
+**Trigger:** `update_updated_at_column` para atualizar `updated_at` automaticamente.
+
+---
+
+### 2. Frontend — Arquivos novos
+
+| Arquivo | Descrição |
+|---|---|
+| `src/pages/dashboard/Optimizations.tsx` | Tabela listando otimizações com colunas: Objetivo, Hipótese, Teste, Nota, Resultado, Status (badge colorido), Data Início, Próxima Análise. Botão "Nova Otimização" no topo. |
+| `src/pages/dashboard/OptimizationForm.tsx` | Formulário com campos de texto/textarea e date pickers para criar ou editar um registro. Rota com parâmetro opcional `:id` para edição. |
+
+---
+
+### 3. Roteamento (`App.tsx`)
+
+Adicionar duas rotas protegidas:
+- `/dashboard/optimizations` → listagem
+- `/dashboard/optimizations/new` → formulário (criar)
+- `/dashboard/optimizations/:id/edit` → formulário (editar)
+
+---
+
+### 4. Navegação (`DashboardLayout.tsx`)
+
+Adicionar item "Otimizações" no `bottomNavItems` com ícone `Lightbulb` (lucide), link `/dashboard/optimizations`.
+
+---
+
+### 5. Comportamento
+
+- A listagem filtra por `client_id` do contexto atual (via RLS + `current_user_client_id()`)
+- Status exibido como badge: "Em progresso" (amarelo) / "Concluído" (verde)
+- Botão de editar em cada linha leva ao formulário preenchido
+- Após salvar, redireciona para a listagem com toast de sucesso
 
