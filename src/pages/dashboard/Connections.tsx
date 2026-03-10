@@ -47,6 +47,8 @@ export default function Connections() {
   const [connectingMeta, setConnectingMeta] = useState(false);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [connectingAnalytics, setConnectingAnalytics] = useState(false);
+  const [connectingSocialMeta, setConnectingSocialMeta] = useState(false);
+  const [connectingLinkedin, setConnectingLinkedin] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>(clientId || "");
 
   // Account ID states
