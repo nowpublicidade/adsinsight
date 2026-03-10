@@ -14,6 +14,7 @@ import Dashboard from "./pages/dashboard/Dashboard";
 import MetaAds from "./pages/dashboard/MetaAds";
 import GoogleAds from "./pages/dashboard/GoogleAds";
 import Analytics from "./pages/dashboard/Analytics";
+import SocialMedia from "./pages/dashboard/SocialMedia";
 import Connections from "./pages/dashboard/Connections";
 import Reports from "./pages/dashboard/Reports";
 import ReportEditor from "./pages/dashboard/ReportEditor";
