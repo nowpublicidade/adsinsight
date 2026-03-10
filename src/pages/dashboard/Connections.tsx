@@ -116,38 +116,29 @@ export default function Connections() {
   });
 
   const disconnectMutation = useMutation({
-    mutationFn: async (platform: "meta" | "google" | "analytics") => {
+    mutationFn: async (platform: "meta" | "google" | "analytics" | "social_meta" | "linkedin") => {
       if (!effectiveClientId) throw new Error("No client ID");
 
-      const updates =
-        platform === "meta"
-          ? {
-              meta_access_token: null,
-              meta_token_expires_at: null,
-              meta_user_id: null,
-              meta_connected_at: null,
-            }
-          : platform === "google"
-          ? {
-              google_access_token: null,
-              google_refresh_token: null,
-              google_token_expires_at: null,
-              google_connected_at: null,
-            }
-          : {
-              ga_access_token: null,
-              ga_refresh_token: null,
-              ga_token_expires_at: null,
-              ga_connected_at: null,
-            };
+      let updates: Record<string, any> = {};
+      if (platform === "meta") {
+        updates = { meta_access_token: null, meta_token_expires_at: null, meta_user_id: null, meta_connected_at: null };
+      } else if (platform === "google") {
+        updates = { google_access_token: null, google_refresh_token: null, google_token_expires_at: null, google_connected_at: null };
+      } else if (platform === "analytics") {
+        updates = { ga_access_token: null, ga_refresh_token: null, ga_token_expires_at: null, ga_connected_at: null };
+      } else if (platform === "social_meta") {
+        updates = { fb_page_id: null, fb_page_token: null, fb_page_connected_at: null, ig_account_id: null, ig_connected_at: null };
+      } else if (platform === "linkedin") {
+        updates = { linkedin_access_token: null, linkedin_refresh_token: null, linkedin_org_id: null, linkedin_connected_at: null, linkedin_token_expires_at: null };
+      }
 
       const { error } = await supabase.from("clients").update(updates).eq("id", effectiveClientId);
-
       if (error) throw error;
     },
     onSuccess: (_, platform) => {
       queryClient.invalidateQueries({ queryKey: ["client", effectiveClientId] });
-      const names = { meta: "Meta Ads", google: "Google Ads", analytics: "Google Analytics" };
+      queryClient.invalidateQueries({ queryKey: ["client-connections"] });
+      const names: Record<string, string> = { meta: "Meta Ads", google: "Google Ads", analytics: "Google Analytics", social_meta: "Facebook/Instagram", linkedin: "LinkedIn" };
       toast.success(`${names[platform]} desconectado`);
     },
     onError: (error) => {
