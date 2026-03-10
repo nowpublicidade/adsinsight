@@ -19,6 +19,8 @@ import Reports from "./pages/dashboard/Reports";
 import ReportEditor from "./pages/dashboard/ReportEditor";
 import ReportViewer from "./pages/dashboard/ReportViewer";
 import Settings from "./pages/dashboard/Settings";
+import Optimizations from "./pages/dashboard/Optimizations";
+import OptimizationForm from "./pages/dashboard/OptimizationForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
