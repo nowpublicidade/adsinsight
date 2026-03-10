@@ -26,6 +26,7 @@ import {
   TrendingUp,
   Activity,
   ArrowLeftRight,
+  Lightbulb,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
