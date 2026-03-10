@@ -130,6 +130,30 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/dashboard/optimizations"
+              element={
+                <ProtectedRoute>
+                  <Optimizations />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/optimizations/new"
+              element={
+                <ProtectedRoute>
+                  <OptimizationForm />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/optimizations/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <OptimizationForm />
+                </ProtectedRoute>
+              }
+            />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
