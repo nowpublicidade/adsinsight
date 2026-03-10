@@ -51,6 +51,7 @@ export default function Connections() {
   const [connectingSocialMeta, setConnectingSocialMeta] = useState(false);
   const [connectingLinkedin, setConnectingLinkedin] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>(clientId || "");
+  const [showPageSelector, setShowPageSelector] = useState(false);
 
   // Account ID states
   const [metaAdAccountId, setMetaAdAccountId] = useState("");
