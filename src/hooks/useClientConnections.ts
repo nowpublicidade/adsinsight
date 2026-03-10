@@ -36,13 +36,16 @@ export function useClientConnections(): ClientConnections {
 
   // Admins veem tudo
   if (isAdmin) {
-    return { meta: true, google: true, analytics: true, isLoading: false };
+    return { meta: true, google: true, analytics: true, facebook: true, instagram: true, linkedin: true, isLoading: false };
   }
 
   return {
     meta: !!client?.meta_connected_at,
     google: !!client?.google_connected_at,
     analytics: !!(client as any)?.ga_connected_at,
+    facebook: !!(client as any)?.fb_page_connected_at,
+    instagram: !!(client as any)?.ig_connected_at,
+    linkedin: !!(client as any)?.linkedin_connected_at,
     isLoading,
   };
 }
