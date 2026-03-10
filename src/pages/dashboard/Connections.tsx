@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, XCircle, ExternalLink, Unlink, AlertTriangle, Save, Info } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ExternalLink, Unlink, AlertTriangle, Save, Info, Check } from "lucide-react";
 
 // Meta and Google icons as SVG
 const MetaIcon = () => (
