@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,8 +11,118 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, XCircle, ExternalLink, Unlink, AlertTriangle, Save, Info, Check } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ExternalLink, Unlink, AlertTriangle, Save, Info, Check, Search } from "lucide-react";
+
+interface PageItem {
+  id: string;
+  name: string;
+  access_token: string;
+  instagram_business_account: string | null;
+  picture: string | null;
+}
+
+function PageSelectorDialog({
+  open,
+  onOpenChange,
+  pages,
+  selectedPageId,
+  onSelect,
+  isPending,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  pages: PageItem[];
+  selectedPageId: string | null;
+  onSelect: (page: PageItem) => void;
+  isPending: boolean;
+}) {
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return pages;
+    const q = search.toLowerCase();
+    return pages.filter(
+      (p) => p.name.toLowerCase().includes(q) || p.id.includes(q)
+    );
+  }, [pages, search]);
+
+  // Reset search when dialog opens
+  useEffect(() => {
+    if (open) setSearch("");
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Selecionar Página</DialogTitle>
+          <DialogDescription>
+            Escolha qual página do Facebook será usada para exibir as métricas orgânicas.
+            {pages.length > 0 && ` (${pages.length} páginas disponíveis)`}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar página por nome ou ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <ScrollArea className="max-h-[400px]">
+          <div className="space-y-2 pr-3">
+            {filtered.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-6">
+                Nenhuma página encontrada para "{search}"
+              </p>
+            ) : (
+              filtered.map((page) => {
+                const isSelected = selectedPageId === page.id;
+                return (
+                  <button
+                    key={page.id}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                      isSelected
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:border-primary/50 hover:bg-muted/50"
+                    }`}
+                    onClick={() => onSelect(page)}
+                    disabled={isPending}
+                  >
+                    {page.picture ? (
+                      <img
+                        src={page.picture}
+                        alt={page.name}
+                        className="h-10 w-10 rounded-lg object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground text-sm font-bold flex-shrink-0">
+                        {page.name.charAt(0)}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{page.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ID: {page.id}
+                        {page.instagram_business_account && " • Instagram vinculado"}
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <Check className="h-5 w-5 text-primary flex-shrink-0" />
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // Meta and Google icons as SVG
 const MetaIcon = () => (
