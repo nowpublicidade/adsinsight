@@ -7,6 +7,9 @@ export interface ClientConnections {
   meta: boolean;
   google: boolean;
   analytics: boolean;
+  facebook: boolean;
+  instagram: boolean;
+  linkedin: boolean;
   isLoading: boolean;
 }
 
