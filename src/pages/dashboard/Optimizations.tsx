@@ -11,10 +11,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Lightbulb, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Lightbulb, Loader2, CalendarDays, FlaskConical, Target, MessageSquareText, Trophy } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -38,6 +44,7 @@ export default function Optimizations() {
   const { toast } = useToast();
   const [optimizations, setOptimizations] = useState<Optimization[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedOpt, setSelectedOpt] = useState<Optimization | null>(null);
 
   const fetchOptimizations = async () => {
     if (!clientId) return;
@@ -60,12 +67,14 @@ export default function Optimizations() {
     fetchOptimizations();
   }, [clientId]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     const { error } = await supabase.from("optimizations").delete().eq("id", id);
     if (error) {
       toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Otimização excluída" });
+      if (selectedOpt?.id === id) setSelectedOpt(null);
       fetchOptimizations();
     }
   };
@@ -78,6 +87,18 @@ export default function Optimizations() {
       return dateStr;
     }
   };
+
+  const DetailRow = ({ icon: Icon, label, children }: { icon: any; label: string; children: React.ReactNode }) => (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed pl-5.5">
+        {children}
+      </div>
+    </div>
+  );
 
   return (
     <DashboardLayout>
@@ -132,7 +153,11 @@ export default function Optimizations() {
                 </TableRow>
               ) : (
                 optimizations.map((opt) => (
-                  <TableRow key={opt.id}>
+                  <TableRow
+                    key={opt.id}
+                    className="cursor-pointer"
+                    onClick={() => setSelectedOpt(opt)}
+                  >
                     <TableCell className="font-medium max-w-[180px] truncate">{opt.objective}</TableCell>
                     <TableCell className="max-w-[160px] truncate">{opt.hypothesis}</TableCell>
                     <TableCell className="max-w-[140px] truncate">{opt.applied_test}</TableCell>
@@ -152,7 +177,7 @@ export default function Optimizations() {
                     <TableCell className="text-sm">{formatDate(opt.start_date)}</TableCell>
                     <TableCell className="text-sm">{formatDate(opt.next_analysis_date)}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon-sm" asChild>
                           <Link to={`/dashboard/optimizations/${opt.id}/edit`}>
                             <Pencil className="h-3.5 w-3.5" />
@@ -161,7 +186,7 @@ export default function Optimizations() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          onClick={() => handleDelete(opt.id)}
+                          onClick={(e) => handleDelete(opt.id, e)}
                           className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -175,6 +200,66 @@ export default function Optimizations() {
           </Table>
         </div>
       </div>
+
+      {/* Detail Dialog */}
+      <Dialog open={!!selectedOpt} onOpenChange={(open) => !open && setSelectedOpt(null)}>
+        <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
+          {selectedOpt && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <DialogTitle className="text-lg">{selectedOpt.objective}</DialogTitle>
+                  <Badge
+                    className={
+                      selectedOpt.status === "concluido"
+                        ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 shrink-0"
+                        : "bg-amber-500/15 text-amber-400 border-amber-500/30 shrink-0"
+                    }
+                  >
+                    {selectedOpt.status === "concluido" ? "Concluído" : "Em progresso"}
+                  </Badge>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-5 pt-2">
+                <DetailRow icon={Target} label="Hipótese">
+                  {selectedOpt.hypothesis}
+                </DetailRow>
+
+                <DetailRow icon={FlaskConical} label="Teste Aplicado">
+                  {selectedOpt.applied_test}
+                </DetailRow>
+
+                <DetailRow icon={MessageSquareText} label="Nota">
+                  {selectedOpt.notes || "Sem notas"}
+                </DetailRow>
+
+                <DetailRow icon={Trophy} label="Resultado Final">
+                  {selectedOpt.final_result || "Aguardando resultado"}
+                </DetailRow>
+
+                <div className="flex gap-6 pt-1">
+                  <DetailRow icon={CalendarDays} label="Início">
+                    {formatDate(selectedOpt.start_date)}
+                  </DetailRow>
+                  <DetailRow icon={CalendarDays} label="Próxima Análise">
+                    {formatDate(selectedOpt.next_analysis_date)}
+                  </DetailRow>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-border mt-2">
+                <Button variant="outline" size="sm" asChild>
+                  <Link to={`/dashboard/optimizations/${selectedOpt.id}/edit`}>
+                    <Pencil className="h-3.5 w-3.5 mr-2" />
+                    Editar
+                  </Link>
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
