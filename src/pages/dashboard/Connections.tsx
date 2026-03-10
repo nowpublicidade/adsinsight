@@ -925,47 +925,14 @@ export default function Connections() {
       </div>
 
       {/* Page Selection Dialog */}
-      <Dialog open={showPageSelector} onOpenChange={setShowPageSelector}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Selecionar Página</DialogTitle>
-            <DialogDescription>
-              Escolha qual página do Facebook será usada para exibir as métricas orgânicas.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {availablePages.map((page) => {
-              const isSelected = (client as any)?.fb_page_id === page.id;
-              return (
-                <button
-                  key={page.id}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
-                    isSelected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50 hover:bg-muted/50"
-                  }`}
-                  onClick={() => selectPageMutation.mutate(page)}
-                  disabled={selectPageMutation.isPending}
-                >
-                  {page.picture ? (
-                    <img src={page.picture} alt={page.name} className="h-10 w-10 rounded-lg object-cover" />
-                  ) : (
-                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground text-sm font-bold">
-                      {page.name.charAt(0)}
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{page.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      ID: {page.id}
-                      {page.instagram_business_account && " • Instagram vinculado"}
-                    </p>
-                  </div>
-                  {isSelected && <Check className="h-5 w-5 text-primary flex-shrink-0" />}
-                </button>
-              );
-            })}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PageSelectorDialog
+        open={showPageSelector}
+        onOpenChange={setShowPageSelector}
+        pages={availablePages}
+        selectedPageId={(client as any)?.fb_page_id}
+        onSelect={(page) => selectPageMutation.mutate(page)}
+        isPending={selectPageMutation.isPending}
+      />
     </DashboardLayout>
   );
 }
