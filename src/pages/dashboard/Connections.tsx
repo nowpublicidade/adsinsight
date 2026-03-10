@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, XCircle, ExternalLink, Unlink, AlertTriangle, Save, Info } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ExternalLink, Unlink, AlertTriangle, Save, Info, Check } from "lucide-react";
 
 // Meta and Google icons as SVG
 const MetaIcon = () => (
@@ -50,6 +51,7 @@ export default function Connections() {
   const [connectingSocialMeta, setConnectingSocialMeta] = useState(false);
   const [connectingLinkedin, setConnectingLinkedin] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>(clientId || "");
+  const [showPageSelector, setShowPageSelector] = useState(false);
 
   // Account ID states
   const [metaAdAccountId, setMetaAdAccountId] = useState("");
@@ -127,7 +129,7 @@ export default function Connections() {
       } else if (platform === "analytics") {
         updates = { ga_access_token: null, ga_refresh_token: null, ga_token_expires_at: null, ga_connected_at: null };
       } else if (platform === "social_meta") {
-        updates = { fb_page_id: null, fb_page_token: null, fb_page_connected_at: null, ig_account_id: null, ig_connected_at: null };
+        updates = { fb_page_id: null, fb_page_token: null, fb_page_connected_at: null, ig_account_id: null, ig_connected_at: null, fb_available_pages: [] };
       } else if (platform === "linkedin") {
         updates = { linkedin_access_token: null, linkedin_refresh_token: null, linkedin_org_id: null, linkedin_connected_at: null, linkedin_token_expires_at: null };
       }
@@ -287,10 +289,46 @@ export default function Connections() {
     }
   };
 
+  // Page selection mutation
+  const selectPageMutation = useMutation({
+    mutationFn: async (page: { id: string; name: string; access_token: string; instagram_business_account: string | null }) => {
+      if (!effectiveClientId) throw new Error("No client ID");
+      const updates: Record<string, any> = {
+        fb_page_id: page.id,
+        fb_page_token: page.access_token,
+      };
+      if (page.instagram_business_account) {
+        updates.ig_account_id = page.instagram_business_account;
+        updates.ig_connected_at = new Date().toISOString();
+      }
+      const { error } = await supabase.from("clients").update(updates).eq("id", effectiveClientId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client", effectiveClientId] });
+      queryClient.invalidateQueries({ queryKey: ["client-connections"] });
+      setShowPageSelector(false);
+      toast.success("Página selecionada com sucesso!");
+    },
+    onError: (error) => toast.error("Erro ao selecionar página: " + error.message),
+  });
+
+  // Check URL params for page selection prompt
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("social_meta") === "select_page") {
+      setShowPageSelector(true);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  const availablePages = (client as any)?.fb_available_pages as Array<{ id: string; name: string; access_token: string; instagram_business_account: string | null; picture: string | null }> || [];
+
   const isMetaConnected = !!client?.meta_connected_at;
   const isGoogleConnected = !!client?.google_connected_at;
   const isAnalyticsConnected = !!(client as any)?.ga_connected_at;
   const isSocialMetaConnected = !!(client as any)?.fb_page_connected_at;
+  const isSocialPageSelected = !!(client as any)?.fb_page_id;
   const isInstagramConnected = !!(client as any)?.ig_connected_at;
   const isLinkedinConnected = !!(client as any)?.linkedin_connected_at;
   const hasNoClient = !effectiveClientId;
@@ -768,11 +806,31 @@ export default function Connections() {
                 <>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>Conectado em: {(client as any)?.fb_page_connected_at ? new Date((client as any).fb_page_connected_at).toLocaleDateString("pt-BR") : "N/A"}</p>
+                    {isSocialPageSelected ? (
+                      <p>Página: <span className="font-medium text-foreground">{availablePages.find(p => p.id === (client as any)?.fb_page_id)?.name || (client as any)?.fb_page_id}</span></p>
+                    ) : (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30">
+                        <Info className="h-4 w-4 text-warning flex-shrink-0" />
+                        <p className="text-sm text-warning">Selecione uma página para exibir as métricas</p>
+                      </div>
+                    )}
                     {isInstagramConnected && <p>Instagram vinculado ✓</p>}
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => disconnectMutation.mutate("social_meta")} disabled={disconnectMutation.isPending}>
-                    <Unlink className="h-4 w-4 mr-2" /> Desconectar
-                  </Button>
+                  <div className="flex gap-2">
+                    {availablePages.length > 1 && (
+                      <Button variant="outline" size="sm" onClick={() => setShowPageSelector(true)}>
+                        Trocar Página
+                      </Button>
+                    )}
+                    {!isSocialPageSelected && availablePages.length > 0 && (
+                      <Button variant="default" size="sm" onClick={() => setShowPageSelector(true)}>
+                        Selecionar Página
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => disconnectMutation.mutate("social_meta")} disabled={disconnectMutation.isPending}>
+                      <Unlink className="h-4 w-4 mr-2" /> Desconectar
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <>
@@ -865,6 +923,49 @@ export default function Connections() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Page Selection Dialog */}
+      <Dialog open={showPageSelector} onOpenChange={setShowPageSelector}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Selecionar Página</DialogTitle>
+            <DialogDescription>
+              Escolha qual página do Facebook será usada para exibir as métricas orgânicas.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {availablePages.map((page) => {
+              const isSelected = (client as any)?.fb_page_id === page.id;
+              return (
+                <button
+                  key={page.id}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                    isSelected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50 hover:bg-muted/50"
+                  }`}
+                  onClick={() => selectPageMutation.mutate(page)}
+                  disabled={selectPageMutation.isPending}
+                >
+                  {page.picture ? (
+                    <img src={page.picture} alt={page.name} className="h-10 w-10 rounded-lg object-cover" />
+                  ) : (
+                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground text-sm font-bold">
+                      {page.name.charAt(0)}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{page.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      ID: {page.id}
+                      {page.instagram_business_account && " • Instagram vinculado"}
+                    </p>
+                  </div>
+                  {isSelected && <Check className="h-5 w-5 text-primary flex-shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

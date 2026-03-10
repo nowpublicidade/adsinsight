@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string | null
+          fb_available_pages: Json | null
           fb_page_connected_at: string | null
           fb_page_id: string | null
           fb_page_token: string | null
@@ -54,6 +55,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email?: string | null
+          fb_available_pages?: Json | null
           fb_page_connected_at?: string | null
           fb_page_id?: string | null
           fb_page_token?: string | null
@@ -90,6 +92,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string | null
+          fb_available_pages?: Json | null
           fb_page_connected_at?: string | null
           fb_page_id?: string | null
           fb_page_token?: string | null
