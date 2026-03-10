@@ -103,6 +103,59 @@ export type Database = {
           },
         ]
       }
+      optimizations: {
+        Row: {
+          applied_test: string
+          client_id: string
+          created_at: string
+          final_result: string | null
+          hypothesis: string
+          id: string
+          next_analysis_date: string | null
+          notes: string | null
+          objective: string
+          start_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          applied_test: string
+          client_id: string
+          created_at?: string
+          final_result?: string | null
+          hypothesis: string
+          id?: string
+          next_analysis_date?: string | null
+          notes?: string | null
+          objective: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          applied_test?: string
+          client_id?: string
+          created_at?: string
+          final_result?: string | null
+          hypothesis?: string
+          id?: string
+          next_analysis_date?: string | null
+          notes?: string | null
+          objective?: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "optimizations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_widgets: {
         Row: {
           created_at: string
