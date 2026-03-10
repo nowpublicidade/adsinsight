@@ -129,7 +129,7 @@ export default function Connections() {
       } else if (platform === "analytics") {
         updates = { ga_access_token: null, ga_refresh_token: null, ga_token_expires_at: null, ga_connected_at: null };
       } else if (platform === "social_meta") {
-        updates = { fb_page_id: null, fb_page_token: null, fb_page_connected_at: null, ig_account_id: null, ig_connected_at: null };
+        updates = { fb_page_id: null, fb_page_token: null, fb_page_connected_at: null, ig_account_id: null, ig_connected_at: null, fb_available_pages: [] };
       } else if (platform === "linkedin") {
         updates = { linkedin_access_token: null, linkedin_refresh_token: null, linkedin_org_id: null, linkedin_connected_at: null, linkedin_token_expires_at: null };
       }
