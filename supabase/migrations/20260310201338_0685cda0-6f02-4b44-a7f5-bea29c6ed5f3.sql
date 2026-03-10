@@ -1,0 +1,1 @@
+ALTER TABLE public.clients ADD COLUMN fb_available_pages jsonb DEFAULT '[]'::jsonb;
