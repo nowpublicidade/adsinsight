@@ -253,9 +253,46 @@ export default function Connections() {
     }
   };
 
+  const handleConnectSocialMeta = async () => {
+    if (!effectiveClientId) { toast.error("Selecione um cliente"); return; }
+    setConnectingSocialMeta(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("social-meta-oauth-start", {
+        body: { client_id: effectiveClientId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (data?.authUrl) window.location.href = data.authUrl;
+      else throw new Error("URL de autorização não recebida");
+    } catch (error: any) {
+      toast.error("Erro ao iniciar conexão: " + error.message);
+      setConnectingSocialMeta(false);
+    }
+  };
+
+  const handleConnectLinkedin = async () => {
+    if (!effectiveClientId) { toast.error("Selecione um cliente"); return; }
+    setConnectingLinkedin(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("linkedin-oauth-start", {
+        body: { client_id: effectiveClientId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (data?.authUrl) window.location.href = data.authUrl;
+      else throw new Error("URL de autorização não recebida");
+    } catch (error: any) {
+      toast.error("Erro ao iniciar conexão: " + error.message);
+      setConnectingLinkedin(false);
+    }
+  };
+
   const isMetaConnected = !!client?.meta_connected_at;
   const isGoogleConnected = !!client?.google_connected_at;
   const isAnalyticsConnected = !!(client as any)?.ga_connected_at;
+  const isSocialMetaConnected = !!(client as any)?.fb_page_connected_at;
+  const isInstagramConnected = !!(client as any)?.ig_connected_at;
+  const isLinkedinConnected = !!(client as any)?.linkedin_connected_at;
   const hasNoClient = !effectiveClientId;
 
   if (isLoading && effectiveClientId) {
