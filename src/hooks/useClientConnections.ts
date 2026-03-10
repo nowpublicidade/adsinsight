@@ -23,7 +23,7 @@ export function useClientConnections(): ClientConnections {
       const { data, error } = await supabase
         .from("clients")
         .select(
-          "meta_connected_at, google_connected_at, ga_connected_at"
+          "meta_connected_at, google_connected_at, ga_connected_at, fb_page_connected_at, ig_connected_at, linkedin_connected_at"
         )
         .eq("id", clientId)
         .single();
