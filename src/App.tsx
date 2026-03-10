@@ -92,6 +92,13 @@ const App = () => (
               }
             />
             <Route
+              path="/dashboard/social-media"
+              element={
+                <ProtectedRoute>
+                  <SocialMedia />
+                </ProtectedRoute>
+              }
+            <Route
               path="/dashboard/connections"
               element={
                 <ProtectedRoute>
