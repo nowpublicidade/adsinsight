@@ -38,9 +38,9 @@ serve(async (req) => {
     const longData = await longRes.json();
     const longToken = longData.access_token || shortToken;
 
-    // Get user's pages
+    // Get ALL user's pages
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v24.0/me/accounts?access_token=${longToken}&fields=id,name,access_token,instagram_business_account`
+      `https://graph.facebook.com/v24.0/me/accounts?access_token=${longToken}&fields=id,name,access_token,instagram_business_account,picture`
     );
     const pagesData = await pagesRes.json();
 
@@ -49,24 +49,32 @@ serve(async (req) => {
       return Response.redirect(`${FRONTEND_URL}/dashboard/connections?error=no_pages`);
     }
 
-    // Use first page
-    const page = pagesData.data[0];
-    const pageId = page.id;
-    const pageToken = page.access_token;
-    const igAccountId = page.instagram_business_account?.id || null;
+    // Store ALL pages for user selection
+    const availablePages = pagesData.data.map((page: any) => ({
+      id: page.id,
+      name: page.name,
+      access_token: page.access_token,
+      instagram_business_account: page.instagram_business_account?.id || null,
+      picture: page.picture?.data?.url || null,
+    }));
 
-    // Save to database
+    // Save available pages to database — don't auto-select
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const updates: Record<string, any> = {
-      fb_page_id: pageId,
-      fb_page_token: pageToken,
+      fb_available_pages: availablePages,
       fb_page_connected_at: new Date().toISOString(),
     };
 
-    if (igAccountId) {
-      updates.ig_account_id = igAccountId;
-      updates.ig_connected_at = new Date().toISOString();
+    // If only one page, auto-select it
+    if (availablePages.length === 1) {
+      const page = availablePages[0];
+      updates.fb_page_id = page.id;
+      updates.fb_page_token = page.access_token;
+      if (page.instagram_business_account) {
+        updates.ig_account_id = page.instagram_business_account;
+        updates.ig_connected_at = new Date().toISOString();
+      }
     }
 
     const { error: updateError } = await supabase
@@ -79,8 +87,9 @@ serve(async (req) => {
       return Response.redirect(`${FRONTEND_URL}/dashboard/connections?error=db_update`);
     }
 
-    console.log(`Social Meta connected for client ${clientId}: page=${pageId}, ig=${igAccountId}`);
-    return Response.redirect(`${FRONTEND_URL}/dashboard/connections?social_meta=connected`);
+    const suffix = availablePages.length === 1 ? 'social_meta=connected' : 'social_meta=select_page';
+    console.log(`Social Meta OAuth done for client ${clientId}: ${availablePages.length} pages found`);
+    return Response.redirect(`${FRONTEND_URL}/dashboard/connections?${suffix}`);
   } catch (error) {
     console.error('Error in social-meta-oauth-callback:', error);
     const FRONTEND_URL = Deno.env.get('FRONTEND_URL') || 'http://localhost:5173';
