@@ -38,19 +38,26 @@ serve(async (req) => {
     const longData = await longRes.json();
     const longToken = longData.access_token || shortToken;
 
-    // Get ALL user's pages
-    const pagesRes = await fetch(
-      `https://graph.facebook.com/v24.0/me/accounts?access_token=${longToken}&fields=id,name,access_token,instagram_business_account,picture`
-    );
-    const pagesData = await pagesRes.json();
+    // Get ALL user's pages (handle pagination)
+    let allPages: any[] = [];
+    let nextUrl: string | null = `https://graph.facebook.com/v24.0/me/accounts?access_token=${longToken}&fields=id,name,access_token,instagram_business_account,picture&limit=100`;
 
-    if (!pagesData.data || pagesData.data.length === 0) {
+    while (nextUrl) {
+      const pagesRes = await fetch(nextUrl);
+      const pagesData = await pagesRes.json();
+      if (pagesData.data) {
+        allPages = allPages.concat(pagesData.data);
+      }
+      nextUrl = pagesData.paging?.next || null;
+    }
+
+    if (allPages.length === 0) {
       console.error('No pages found');
       return Response.redirect(`${FRONTEND_URL}/dashboard/connections?error=no_pages`);
     }
 
     // Store ALL pages for user selection
-    const availablePages = pagesData.data.map((page: any) => ({
+    const availablePages = allPages.map((page: any) => ({
       id: page.id,
       name: page.name,
       access_token: page.access_token,
