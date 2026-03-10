@@ -26,6 +26,7 @@ import {
   TrendingUp,
   Activity,
   ArrowLeftRight,
+  Lightbulb,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +40,7 @@ const adminNavItems = [
 ];
 
 const bottomNavItems = [
+  { href: "/dashboard/optimizations", label: "Otimizações", icon: Lightbulb },
   { href: "/dashboard/reports", label: "Relatórios", icon: FileText },
   { href: "/dashboard/connections", label: "Conexões", icon: LinkIcon },
   { href: "/dashboard/settings", label: "Configurações", icon: Settings },
