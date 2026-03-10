@@ -98,6 +98,7 @@ const App = () => (
                   <SocialMedia />
                 </ProtectedRoute>
               }
+            />
             <Route
               path="/dashboard/connections"
               element={
