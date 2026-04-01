@@ -319,6 +319,79 @@ export type Database = {
         }
         Relationships: []
       }
+      tracking_configs: {
+        Row: {
+          analysis_period: string
+          client_id: string
+          created_at: string
+          id: string
+          metric_name: string
+          updated_at: string
+        }
+        Insert: {
+          analysis_period?: string
+          client_id: string
+          created_at?: string
+          id?: string
+          metric_name?: string
+          updated_at?: string
+        }
+        Update: {
+          analysis_period?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          metric_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracking_configs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracking_entries: {
+        Row: {
+          campaign_name: string
+          client_id: string
+          created_at: string
+          daily_budget: number
+          id: string
+          metric_value: number
+          recorded_at: string
+        }
+        Insert: {
+          campaign_name: string
+          client_id: string
+          created_at?: string
+          daily_budget?: number
+          id?: string
+          metric_value: number
+          recorded_at?: string
+        }
+        Update: {
+          campaign_name?: string
+          client_id?: string
+          created_at?: string
+          daily_budget?: number
+          id?: string
+          metric_value?: number
+          recorded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracking_entries_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_client_access: {
         Row: {
           client_id: string
