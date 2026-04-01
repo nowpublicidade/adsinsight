@@ -22,6 +22,7 @@ import ReportViewer from "./pages/dashboard/ReportViewer";
 import Settings from "./pages/dashboard/Settings";
 import Optimizations from "./pages/dashboard/Optimizations";
 import OptimizationForm from "./pages/dashboard/OptimizationForm";
+import Tracking from "./pages/dashboard/Tracking";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -136,6 +137,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Settings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/tracking"
+              element={
+                <ProtectedRoute>
+                  <Tracking />
                 </ProtectedRoute>
               }
             />
