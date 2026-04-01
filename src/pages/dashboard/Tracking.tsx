@@ -58,7 +58,7 @@ export default function Tracking() {
   const { toast } = useToast();
 
   const [metricName, setMetricName] = useState("ROAS");
-  const [analysisPeriod, setAnalysisPeriod] = useState("semanal");
+  const [analysisPeriod, setAnalysisPeriod] = useState("7dias");
   const [configLoaded, setConfigLoaded] = useState(false);
   const [entries, setEntries] = useState<TrackingEntry[]>([]);
   const [loading, setLoading] = useState(true);
