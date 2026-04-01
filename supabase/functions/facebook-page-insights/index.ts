@@ -54,16 +54,34 @@ function parseDateParams(body: any): { since: number; until: number; prevSince: 
 }
 
 async function fetchPageInsights(pageId: string, token: string, since: number, until: number) {
-  const metrics = 'page_impressions,page_post_engagements,page_fan_adds,page_views_total';
-  const res = await fetch(
-    `https://graph.facebook.com/v21.0/${pageId}/insights?metric=${metrics}&period=day&since=${since}&until=${until}&access_token=${token}`
-  );
+  // v21+ valid metrics: page_post_engagements, page_daily_follows, page_views_total, page_media_view (replaces page_impressions)
+  const metrics = 'page_post_engagements,page_daily_follows,page_views_total';
+  const url = `https://graph.facebook.com/v21.0/${pageId}/insights?metric=${metrics}&period=day&since=${since}&until=${until}&access_token=${token}`;
+  console.log('[FB] Fetching insights:', url.replace(token, '***'));
+  const res = await fetch(url);
   const data = await res.json();
 
-  let impressions = 0, engagements = 0, newFollowers = 0, views = 0;
-  const dailyImpressions: { date: string; value: number }[] = [];
+  if (data.error) {
+    console.error('[FB] Insights API error:', JSON.stringify(data.error));
+    // Fallback: try without page_daily_follows
+    const fallbackMetrics = 'page_post_engagements,page_views_total';
+    const fallbackUrl = `https://graph.facebook.com/v21.0/${pageId}/insights?metric=${fallbackMetrics}&period=day&since=${since}&until=${until}&access_token=${token}`;
+    const fallbackRes = await fetch(fallbackUrl);
+    const fallbackData = await fallbackRes.json();
+    if (fallbackData.error) {
+      console.error('[FB] Fallback also failed:', JSON.stringify(fallbackData.error));
+    }
+    return processInsightsData(fallbackData);
+  }
+
+  return processInsightsData(data);
+}
+
+function processInsightsData(data: any) {
+  let engagements = 0, newFollowers = 0, views = 0;
   const dailyEngagement: { date: string; value: number }[] = [];
   const dailyNewFollowers: { date: string; value: number }[] = [];
+  const dailyViews: { date: string; value: number }[] = [];
 
   if (data.data) {
     for (const metric of data.data) {
@@ -72,27 +90,51 @@ async function fetchPageInsights(pageId: string, token: string, since: number, u
         const date = v.end_time?.split('T')[0] || '';
         const val = v.value || 0;
         switch (metric.name) {
-          case 'page_impressions':
-            impressions += val;
-            dailyImpressions.push({ date, value: val });
-            break;
           case 'page_post_engagements':
             engagements += val;
             dailyEngagement.push({ date, value: val });
             break;
-          case 'page_fan_adds':
+          case 'page_daily_follows':
             newFollowers += val;
             dailyNewFollowers.push({ date, value: val });
             break;
           case 'page_views_total':
             views += val;
+            dailyViews.push({ date, value: val });
             break;
         }
       }
     }
   }
 
-  return { impressions, engagements, newFollowers, views, dailyImpressions, dailyEngagement, dailyNewFollowers };
+  return { engagements, newFollowers, views, dailyEngagement, dailyNewFollowers, dailyViews };
+}
+
+// Fetch page_media_view separately (replacement for page_impressions)
+async function fetchPageMediaViews(pageId: string, token: string, since: number, until: number) {
+  const url = `https://graph.facebook.com/v21.0/${pageId}/insights?metric=page_media_view&period=day&since=${since}&until=${until}&access_token=${token}`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  let totalViews = 0;
+  const dailyImpressions: { date: string; value: number }[] = [];
+
+  if (data.data) {
+    for (const metric of data.data) {
+      if (!metric.values) continue;
+      for (const v of metric.values) {
+        const val = v.value || 0;
+        totalViews += val;
+        dailyImpressions.push({ date: v.end_time?.split('T')[0] || '', value: val });
+      }
+    }
+  }
+
+  if (data.error) {
+    console.error('[FB] page_media_view error:', JSON.stringify(data.error));
+  }
+
+  return { totalViews, dailyImpressions };
 }
 
 serve(async (req) => {
@@ -128,10 +170,11 @@ serve(async (req) => {
     const { fb_page_id, fb_page_token } = client;
     const { since, until, prevSince, prevUntil } = parseDateParams(body);
 
-    // Fetch current + previous + page info + posts in parallel
-    const [current, prev, pageRes, postsRes] = await Promise.all([
+    const [current, prev, currentMediaViews, prevMediaViews, pageRes, postsRes] = await Promise.all([
       fetchPageInsights(fb_page_id, fb_page_token, since, until),
       fetchPageInsights(fb_page_id, fb_page_token, prevSince, prevUntil),
+      fetchPageMediaViews(fb_page_id, fb_page_token, since, until),
+      fetchPageMediaViews(fb_page_id, fb_page_token, prevSince, prevUntil),
       fetch(`https://graph.facebook.com/v21.0/${fb_page_id}?fields=followers_count,fan_count,name&access_token=${fb_page_token}`),
       fetch(`https://graph.facebook.com/v21.0/${fb_page_id}/posts?fields=id,message,created_time,full_picture,permalink_url,likes.summary(true),comments.summary(true),shares&limit=50&since=${since}&access_token=${fb_page_token}`),
     ]);
@@ -160,7 +203,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       metrics: {
-        reach: current.impressions, // page_impressions = reach on FB
+        reach: currentMediaViews.totalViews, // page_media_view replaces page_impressions
         views: current.views,
         followers: pageData.followers_count || pageData.fan_count || 0,
         newFollowers: current.newFollowers,
@@ -169,13 +212,13 @@ serve(async (req) => {
         comments: totalComments,
       },
       comparison: {
-        reach: prev.impressions,
+        reach: prevMediaViews.totalViews,
         views: prev.views,
         newFollowers: prev.newFollowers,
         engagements: prev.engagements,
       },
       daily: {
-        impressions: current.dailyImpressions,
+        impressions: currentMediaViews.dailyImpressions,
         engagement: current.dailyEngagement,
         newFollowers: current.dailyNewFollowers,
       },

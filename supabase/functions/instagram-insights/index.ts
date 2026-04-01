@@ -35,7 +35,6 @@ function parseDateParams(body: any): { since: number; until: number; prevSince: 
     }
   }
 
-  // Also support legacy "period" param (number of days)
   if (body.period && !body.date_preset && !body.date_range) {
     const days = parseInt(body.period);
     since = new Date(Date.now() - days * 86400000);
@@ -55,46 +54,58 @@ function parseDateParams(body: any): { since: number; until: number; prevSince: 
 }
 
 async function fetchInsights(igId: string, token: string, since: number, until: number) {
-  // Fetch daily breakdown for reach, impressions
-  const insightsRes = await fetch(
-    `https://graph.facebook.com/v21.0/${igId}/insights?metric=reach,impressions,follower_count&period=day&since=${since}&until=${until}&access_token=${token}`
-  );
-  const insightsData = await insightsRes.json();
+  // Split into two calls: period=day metrics and metric_type=total_value metrics
+  const [dailyRes, totalRes] = await Promise.all([
+    fetch(`https://graph.facebook.com/v21.0/${igId}/insights?metric=reach,follower_count&period=day&since=${since}&until=${until}&access_token=${token}`),
+    fetch(`https://graph.facebook.com/v21.0/${igId}/insights?metric=views,follows_and_unfollows&metric_type=total_value&period=day&since=${since}&until=${until}&access_token=${token}`),
+  ]);
 
-  let reach = 0, impressions = 0, followerValues: { date: string; value: number }[] = [];
+  const dailyData = await dailyRes.json();
+  const totalData = await totalRes.json();
+
+  if (dailyData.error) console.error('[IG] Daily insights error:', JSON.stringify(dailyData.error));
+  if (totalData.error) console.error('[IG] Total insights error:', JSON.stringify(totalData.error));
+  
+
+  let reach = 0, views = 0, newFollowers = 0;
   const dailyReach: { date: string; value: number }[] = [];
-  const dailyImpressions: { date: string; value: number }[] = [];
+  const dailyViews: { date: string; value: number }[] = [];
+  const dailyNewFollowers: { date: string; value: number }[] = [];
+  const followerValues: { date: string; value: number }[] = [];
 
-  if (insightsData.data) {
-    for (const metric of insightsData.data) {
+  // Process daily metrics (reach, follower_count)
+  if (dailyData.data) {
+    for (const metric of dailyData.data) {
       if (!metric.values) continue;
-      switch (metric.name) {
-        case 'reach':
-          for (const v of metric.values) {
-            reach += v.value || 0;
-            dailyReach.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
-          }
-          break;
-        case 'impressions':
-          for (const v of metric.values) {
-            impressions += v.value || 0;
-            dailyImpressions.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
-          }
-          break;
-        case 'follower_count':
-          followerValues = metric.values.map((v: any) => ({
-            date: v.end_time?.split('T')[0] || '',
-            value: v.value || 0,
-          }));
-          break;
+      if (metric.name === 'reach') {
+        for (const v of metric.values) {
+          reach += v.value || 0;
+          dailyReach.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
+        }
+      }
+      if (metric.name === 'follower_count') {
+        for (const v of metric.values) {
+          followerValues.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
+        }
       }
     }
   }
 
-  // New followers = last follower_count - first follower_count
-  let newFollowers = 0;
-  const dailyNewFollowers: { date: string; value: number }[] = [];
-  if (followerValues.length >= 2) {
+  // Process total_value metrics (views, follows_and_unfollows)
+  if (totalData.data) {
+    for (const metric of totalData.data) {
+      if (metric.name === 'views' && metric.total_value?.value != null) {
+        views = metric.total_value.value;
+      }
+      if (metric.name === 'follows_and_unfollows' && metric.total_value?.value != null) {
+        const val = metric.total_value.value;
+        newFollowers = typeof val === 'object' ? (val.follows || 0) : (val || 0);
+      }
+    }
+  }
+
+  // Fallback: calculate newFollowers from follower_count delta
+  if (newFollowers === 0 && followerValues.length >= 2) {
     newFollowers = followerValues[followerValues.length - 1].value - followerValues[0].value;
     for (let i = 1; i < followerValues.length; i++) {
       dailyNewFollowers.push({
@@ -104,7 +115,12 @@ async function fetchInsights(igId: string, token: string, since: number, until: 
     }
   }
 
-  return { reach, impressions, newFollowers, dailyReach, dailyImpressions, dailyNewFollowers };
+  // If views didn't come from total_value, sum from daily
+  if (views === 0 && dailyViews.length > 0) {
+    views = dailyViews.reduce((s, d) => s + d.value, 0);
+  }
+
+  return { reach, views, newFollowers, dailyReach, dailyViews, dailyNewFollowers };
 }
 
 serve(async (req) => {
@@ -140,7 +156,6 @@ serve(async (req) => {
     const { ig_account_id, fb_page_token } = client;
     const { since, until, prevSince, prevUntil } = parseDateParams(body);
 
-    // Fetch current + previous period in parallel
     const [currentInsights, prevInsights, accountRes, mediaRes] = await Promise.all([
       fetchInsights(ig_account_id, fb_page_token, since, until),
       fetchInsights(ig_account_id, fb_page_token, prevSince, prevUntil),
@@ -151,11 +166,9 @@ serve(async (req) => {
     const accountData = await accountRes.json();
     const mediaData = await mediaRes.json();
 
-    // Filter media by period
     const sinceDate = new Date(since * 1000);
     const allMedia = (mediaData.data || []).filter((m: any) => new Date(m.timestamp) >= sinceDate);
 
-    // Map to top posts
     const topPosts = allMedia
       .map((m: any) => {
         const isStory = m.media_product_type === 'STORY' || m.media_product_type === 'REELS';
@@ -179,7 +192,6 @@ serve(async (req) => {
     const totalLikes = allMedia.reduce((s: number, m: any) => s + (m.like_count || 0), 0);
     const totalComments = allMedia.reduce((s: number, m: any) => s + (m.comments_count || 0), 0);
 
-    // Filter previous period media for comparison
     const prevSinceDate = new Date(prevSince * 1000);
     const prevUntilDate = new Date(prevUntil * 1000);
     const prevMedia = (mediaData.data || []).filter((m: any) => {
@@ -189,7 +201,7 @@ serve(async (req) => {
     const prevLikes = prevMedia.reduce((s: number, m: any) => s + (m.like_count || 0), 0);
     const prevComments = prevMedia.reduce((s: number, m: any) => s + (m.comments_count || 0), 0);
 
-    // Build daily engagement from media (group by date)
+    // Build daily engagement from media
     const engagementByDate: Record<string, number> = {};
     for (const m of allMedia) {
       const date = m.timestamp?.split('T')[0] || '';
@@ -202,7 +214,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       metrics: {
         reach: currentInsights.reach,
-        impressions: currentInsights.impressions,
+        impressions: currentInsights.views, // 'views' replaces deprecated 'impressions'
         followers: accountData.followers_count || 0,
         newFollowers: currentInsights.newFollowers,
         likes: totalLikes,
@@ -210,14 +222,14 @@ serve(async (req) => {
       },
       comparison: {
         reach: prevInsights.reach,
-        impressions: prevInsights.impressions,
+        impressions: prevInsights.views,
         newFollowers: prevInsights.newFollowers,
         likes: prevLikes,
         comments: prevComments,
       },
       daily: {
         reach: currentInsights.dailyReach,
-        impressions: currentInsights.dailyImpressions,
+        impressions: currentInsights.dailyViews,
         newFollowers: currentInsights.dailyNewFollowers,
         engagement: dailyEngagement,
       },
