@@ -54,18 +54,24 @@ function parseDateParams(body: any): { since: number; until: number; prevSince: 
 }
 
 async function fetchInsights(igId: string, token: string, since: number, until: number) {
-  // Split into two calls: period=day metrics and metric_type=total_value metrics
-  const [dailyRes, totalRes] = await Promise.all([
-    fetch(`https://graph.facebook.com/v21.0/${igId}/insights?metric=reach,follower_count&period=day&since=${since}&until=${until}&access_token=${token}`),
+  // Separate reach, follower_count and total_value metrics into independent calls
+  // so that a failure in one doesn't break the others.
+  const [reachRes, followerRes, totalRes] = await Promise.all([
+    fetch(`https://graph.facebook.com/v21.0/${igId}/insights?metric=reach&period=day&since=${since}&until=${until}&access_token=${token}`),
+    fetch(`https://graph.facebook.com/v21.0/${igId}/insights?metric=follower_count&period=day&since=${since}&until=${until}&access_token=${token}`)
+      .then(r => r.json())
+      .catch(e => { console.error('[IG] follower_count fetch error:', e); return { data: [] }; }),
     fetch(`https://graph.facebook.com/v21.0/${igId}/insights?metric=views,follows_and_unfollows&metric_type=total_value&period=day&since=${since}&until=${until}&access_token=${token}`),
   ]);
 
-  const dailyData = await dailyRes.json();
+  const reachData = await reachRes.json();
+  // followerRes is already parsed
+  const followerData = followerRes;
   const totalData = await totalRes.json();
 
-  if (dailyData.error) console.error('[IG] Daily insights error:', JSON.stringify(dailyData.error));
+  if (reachData.error) console.error('[IG] Reach insights error:', JSON.stringify(reachData.error));
+  if (followerData.error) console.error('[IG] Follower_count error (non-blocking):', JSON.stringify(followerData.error));
   if (totalData.error) console.error('[IG] Total insights error:', JSON.stringify(totalData.error));
-  
 
   let reach = 0, views = 0, newFollowers = 0;
   const dailyReach: { date: string; value: number }[] = [];
@@ -73,20 +79,23 @@ async function fetchInsights(igId: string, token: string, since: number, until: 
   const dailyNewFollowers: { date: string; value: number }[] = [];
   const followerValues: { date: string; value: number }[] = [];
 
-  // Process daily metrics (reach, follower_count)
-  if (dailyData.data) {
-    for (const metric of dailyData.data) {
-      if (!metric.values) continue;
-      if (metric.name === 'reach') {
-        for (const v of metric.values) {
-          reach += v.value || 0;
-          dailyReach.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
-        }
+  // Process reach (independent call)
+  if (reachData.data) {
+    for (const metric of reachData.data) {
+      if (!metric.values || metric.name !== 'reach') continue;
+      for (const v of metric.values) {
+        reach += v.value || 0;
+        dailyReach.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
       }
-      if (metric.name === 'follower_count') {
-        for (const v of metric.values) {
-          followerValues.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
-        }
+    }
+  }
+
+  // Process follower_count (may fail for >30 days, non-blocking)
+  if (followerData.data && !followerData.error) {
+    for (const metric of followerData.data) {
+      if (!metric.values || metric.name !== 'follower_count') continue;
+      for (const v of metric.values) {
+        followerValues.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
       }
     }
   }
@@ -99,7 +108,13 @@ async function fetchInsights(igId: string, token: string, since: number, until: 
       }
       if (metric.name === 'follows_and_unfollows' && metric.total_value?.value != null) {
         const val = metric.total_value.value;
-        newFollowers = typeof val === 'object' ? (val.follows || 0) : (val || 0);
+        if (typeof val === 'object') {
+          newFollowers = (val.follows || 0);
+          console.log('[IG] follows_and_unfollows object:', JSON.stringify(val));
+        } else {
+          newFollowers = val || 0;
+          console.log('[IG] follows_and_unfollows scalar:', val);
+        }
       }
     }
   }
@@ -166,8 +181,12 @@ serve(async (req) => {
     const accountData = await accountRes.json();
     const mediaData = await mediaRes.json();
 
+    console.log('[IG] Media count returned:', mediaData.data?.length || 0);
+
     const sinceDate = new Date(since * 1000);
     const allMedia = (mediaData.data || []).filter((m: any) => new Date(m.timestamp) >= sinceDate);
+
+    console.log('[IG] Media in period:', allMedia.length, 'sample:', allMedia.length > 0 ? JSON.stringify({ like_count: allMedia[0].like_count, comments_count: allMedia[0].comments_count }) : 'none');
 
     const topPosts = allMedia
       .map((m: any) => {
@@ -214,7 +233,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       metrics: {
         reach: currentInsights.reach,
-        impressions: currentInsights.views, // 'views' replaces deprecated 'impressions'
+        impressions: currentInsights.views,
         followers: accountData.followers_count || 0,
         newFollowers: currentInsights.newFollowers,
         likes: totalLikes,
