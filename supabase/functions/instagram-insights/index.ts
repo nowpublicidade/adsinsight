@@ -65,6 +65,7 @@ async function fetchInsights(igId: string, token: string, since: number, until: 
 
   if (dailyData.error) console.error('[IG] Daily insights error:', JSON.stringify(dailyData.error));
   if (totalData.error) console.error('[IG] Total insights error:', JSON.stringify(totalData.error));
+  console.log('[IG] Total data:', JSON.stringify(totalData).substring(0, 1000));
 
   let reach = 0, views = 0, newFollowers = 0;
   const dailyReach: { date: string; value: number }[] = [];
