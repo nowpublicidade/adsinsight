@@ -25,10 +25,16 @@ const METRIC_OPTIONS = [
 ];
 
 const PERIOD_OPTIONS = [
-  { value: "diario", label: "Diário" },
-  { value: "semanal", label: "Semanal" },
-  { value: "quinzenal", label: "Quinzenal" },
-  { value: "mensal", label: "Mensal" },
+  { value: "ontem", label: "Ontem" },
+  { value: "hoje", label: "Hoje" },
+  { value: "3dias", label: "Últimos 3 dias" },
+  { value: "7dias", label: "Últimos 7 dias" },
+  { value: "15dias", label: "Últimos 15 dias" },
+  { value: "30dias", label: "Últimos 30 dias" },
+  { value: "60dias", label: "Últimos 60 dias" },
+  { value: "90dias", label: "Últimos 90 dias" },
+  { value: "6meses", label: "Últimos 6 meses" },
+  { value: "1ano", label: "Último ano" },
 ];
 
 interface TrackingEntry {
