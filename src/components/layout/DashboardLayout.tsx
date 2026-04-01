@@ -28,6 +28,7 @@ import {
   ArrowLeftRight,
   Lightbulb,
   Share2,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
