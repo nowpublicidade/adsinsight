@@ -55,10 +55,11 @@ function parseDateParams(body: any): { since: number; until: number; prevSince: 
 
 async function fetchPageInsights(pageId: string, token: string, since: number, until: number) {
   const metrics = 'page_impressions,page_post_engagements,page_fan_adds,page_views_total';
-  const res = await fetch(
-    `https://graph.facebook.com/v21.0/${pageId}/insights?metric=${metrics}&period=day&since=${since}&until=${until}&access_token=${token}`
-  );
+  const url = `https://graph.facebook.com/v21.0/${pageId}/insights?metric=${metrics}&period=day&since=${since}&until=${until}&access_token=${token}`;
+  console.log('[FB] Fetching insights:', url.replace(token, '***'));
+  const res = await fetch(url);
   const data = await res.json();
+  console.log('[FB] Insights response:', JSON.stringify(data).substring(0, 500));
 
   let impressions = 0, engagements = 0, newFollowers = 0, views = 0;
   const dailyImpressions: { date: string; value: number }[] = [];

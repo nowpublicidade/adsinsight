@@ -56,10 +56,11 @@ function parseDateParams(body: any): { since: number; until: number; prevSince: 
 
 async function fetchInsights(igId: string, token: string, since: number, until: number) {
   // Fetch daily breakdown for reach, impressions
-  const insightsRes = await fetch(
-    `https://graph.facebook.com/v21.0/${igId}/insights?metric=reach,impressions,follower_count&period=day&since=${since}&until=${until}&access_token=${token}`
-  );
+  const insightsUrl = `https://graph.facebook.com/v21.0/${igId}/insights?metric=reach,impressions,follower_count&period=day&since=${since}&until=${until}&access_token=${token}`;
+  console.log('[IG] Fetching insights:', insightsUrl.replace(token, '***'));
+  const insightsRes = await fetch(insightsUrl);
   const insightsData = await insightsRes.json();
+  console.log('[IG] Insights response:', JSON.stringify(insightsData).substring(0, 500));
 
   let reach = 0, impressions = 0, followerValues: { date: string; value: number }[] = [];
   const dailyReach: { date: string; value: number }[] = [];
