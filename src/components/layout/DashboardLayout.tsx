@@ -42,6 +42,7 @@ const adminNavItems = [
 ];
 
 const bottomNavItems = [
+  { href: "/dashboard/tracking", label: "Acompanhamento", icon: ClipboardList },
   { href: "/dashboard/optimizations", label: "Otimizações", icon: Lightbulb },
   { href: "/dashboard/reports", label: "Relatórios", icon: FileText },
   { href: "/dashboard/connections", label: "Conexões", icon: LinkIcon },

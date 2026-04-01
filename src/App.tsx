@@ -141,6 +141,14 @@ const App = () => (
               }
             />
             <Route
+              path="/dashboard/tracking"
+              element={
+                <ProtectedRoute>
+                  <Tracking />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/dashboard/optimizations"
               element={
                 <ProtectedRoute>
