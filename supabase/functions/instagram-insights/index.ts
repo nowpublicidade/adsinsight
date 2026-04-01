@@ -54,51 +54,90 @@ function parseDateParams(body: any): { since: number; until: number; prevSince: 
 }
 
 async function fetchInsights(igId: string, token: string, since: number, until: number) {
-  // v21+ valid metrics: reach, views, follower_count, follows_and_unfollows, accounts_engaged, total_interactions
-  const metrics = 'reach,views,follower_count,follows_and_unfollows';
-  const insightsUrl = `https://graph.facebook.com/v21.0/${igId}/insights?metric=${metrics}&period=day&since=${since}&until=${until}&access_token=${token}`;
-  console.log('[IG] Fetching insights:', insightsUrl.replace(token, '***'));
-  const insightsRes = await fetch(insightsUrl);
-  const insightsData = await insightsRes.json();
+  // Split into two calls: period=day metrics and metric_type=total_value metrics
+  const [dailyRes, totalRes] = await Promise.all([
+    fetch(`https://graph.facebook.com/v21.0/${igId}/insights?metric=reach,follower_count&period=day&since=${since}&until=${until}&access_token=${token}`),
+    fetch(`https://graph.facebook.com/v21.0/${igId}/insights?metric=views,follows_and_unfollows&metric_type=total_value&period=day&since=${since}&until=${until}&access_token=${token}`),
+  ]);
 
-  if (insightsData.error) {
-    console.error('[IG] Insights API error:', JSON.stringify(insightsData.error));
-  }
+  const dailyData = await dailyRes.json();
+  const totalData = await totalRes.json();
+
+  if (dailyData.error) console.error('[IG] Daily insights error:', JSON.stringify(dailyData.error));
+  if (totalData.error) console.error('[IG] Total insights error:', JSON.stringify(totalData.error));
 
   let reach = 0, views = 0, newFollowers = 0;
   const dailyReach: { date: string; value: number }[] = [];
   const dailyViews: { date: string; value: number }[] = [];
   const dailyNewFollowers: { date: string; value: number }[] = [];
 
-  if (insightsData.data) {
-    for (const metric of insightsData.data) {
+  // Process daily metrics (reach, follower_count)
+  if (dailyData.data) {
+    for (const metric of dailyData.data) {
       if (!metric.values) continue;
-      switch (metric.name) {
-        case 'reach':
-          for (const v of metric.values) {
-            reach += v.value || 0;
-            dailyReach.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
-          }
-          break;
-        case 'views':
-          for (const v of metric.values) {
-            views += v.value || 0;
-            dailyViews.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
-          }
-          break;
-        case 'follower_count':
-          // follower_count gives absolute daily values; we don't use it for newFollowers anymore
-          break;
-        case 'follows_and_unfollows':
-          for (const v of metric.values) {
-            // follows_and_unfollows returns { follows: N, unfollows: N }
-            const follows = typeof v.value === 'object' ? (v.value?.follows || 0) : (v.value || 0);
-            newFollowers += follows;
-            dailyNewFollowers.push({ date: v.end_time?.split('T')[0] || '', value: follows });
-          }
-          break;
+      if (metric.name === 'reach') {
+        for (const v of metric.values) {
+          reach += v.value || 0;
+          dailyReach.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
+        }
       }
     }
+  }
+
+  // Process total_value metrics (views, follows_and_unfollows)
+  if (totalData.data) {
+    for (const metric of totalData.data) {
+      if (!metric.total_value && !metric.values) continue;
+
+      if (metric.name === 'views') {
+        // total_value metrics may return { total_value: { value: N } } or daily breakdowns
+        if (metric.total_value?.value != null) {
+          views = metric.total_value.value;
+        }
+        if (metric.values) {
+          for (const v of metric.values) {
+            dailyViews.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
+          }
+        }
+      }
+
+      if (metric.name === 'follows_and_unfollows') {
+        if (metric.total_value?.value != null) {
+          // Can be { follows: N, unfollows: N } or just a number
+          const val = metric.total_value.value;
+          if (typeof val === 'object') {
+            newFollowers = val.follows || 0;
+          } else {
+            newFollowers = val || 0;
+          }
+        }
+        if (metric.total_value?.breakdowns) {
+          // Extract daily from breakdowns if available
+          for (const br of metric.total_value.breakdowns) {
+            if (br.results) {
+              for (const r of br.results) {
+                const follows = r.value || 0;
+                dailyNewFollowers.push({ date: r.end_time?.split('T')[0] || '', value: follows });
+              }
+            }
+          }
+        }
+        if (metric.values) {
+          for (const v of metric.values) {
+            const val = v.value;
+            const follows = typeof val === 'object' ? (val?.follows || 0) : (val || 0);
+            if (dailyNewFollowers.length === 0) {
+              dailyNewFollowers.push({ date: v.end_time?.split('T')[0] || '', value: follows });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // If views didn't come from total_value, sum from daily
+  if (views === 0 && dailyViews.length > 0) {
+    views = dailyViews.reduce((s, d) => s + d.value, 0);
   }
 
   return { reach, views, newFollowers, dailyReach, dailyViews, dailyNewFollowers };
@@ -210,7 +249,7 @@ serve(async (req) => {
       },
       daily: {
         reach: currentInsights.dailyReach,
-        impressions: currentInsights.dailyViews, // mapped for frontend compatibility
+        impressions: currentInsights.dailyViews,
         newFollowers: currentInsights.dailyNewFollowers,
         engagement: dailyEngagement,
       },
