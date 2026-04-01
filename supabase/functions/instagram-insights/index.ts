@@ -71,6 +71,7 @@ async function fetchInsights(igId: string, token: string, since: number, until: 
   const dailyReach: { date: string; value: number }[] = [];
   const dailyViews: { date: string; value: number }[] = [];
   const dailyNewFollowers: { date: string; value: number }[] = [];
+  const followerValues: { date: string; value: number }[] = [];
 
   // Process daily metrics (reach, follower_count)
   if (dailyData.data) {
@@ -82,57 +83,35 @@ async function fetchInsights(igId: string, token: string, since: number, until: 
           dailyReach.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
         }
       }
+      if (metric.name === 'follower_count') {
+        for (const v of metric.values) {
+          followerValues.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
+        }
+      }
     }
   }
 
   // Process total_value metrics (views, follows_and_unfollows)
   if (totalData.data) {
     for (const metric of totalData.data) {
-      if (!metric.total_value && !metric.values) continue;
-
-      if (metric.name === 'views') {
-        // total_value metrics may return { total_value: { value: N } } or daily breakdowns
-        if (metric.total_value?.value != null) {
-          views = metric.total_value.value;
-        }
-        if (metric.values) {
-          for (const v of metric.values) {
-            dailyViews.push({ date: v.end_time?.split('T')[0] || '', value: v.value || 0 });
-          }
-        }
+      if (metric.name === 'views' && metric.total_value?.value != null) {
+        views = metric.total_value.value;
       }
-
-      if (metric.name === 'follows_and_unfollows') {
-        if (metric.total_value?.value != null) {
-          // Can be { follows: N, unfollows: N } or just a number
-          const val = metric.total_value.value;
-          if (typeof val === 'object') {
-            newFollowers = val.follows || 0;
-          } else {
-            newFollowers = val || 0;
-          }
-        }
-        if (metric.total_value?.breakdowns) {
-          // Extract daily from breakdowns if available
-          for (const br of metric.total_value.breakdowns) {
-            if (br.results) {
-              for (const r of br.results) {
-                const follows = r.value || 0;
-                dailyNewFollowers.push({ date: r.end_time?.split('T')[0] || '', value: follows });
-              }
-            }
-          }
-        }
-        if (metric.values) {
-          for (const v of metric.values) {
-            const val = v.value;
-            const follows = typeof val === 'object' ? (val?.follows || 0) : (val || 0);
-            if (dailyNewFollowers.length === 0) {
-              dailyNewFollowers.push({ date: v.end_time?.split('T')[0] || '', value: follows });
-            }
-          }
-        }
+      if (metric.name === 'follows_and_unfollows' && metric.total_value?.value != null) {
+        const val = metric.total_value.value;
+        newFollowers = typeof val === 'object' ? (val.follows || 0) : (val || 0);
       }
+    }
+  }
+
+  // Fallback: calculate newFollowers from follower_count delta
+  if (newFollowers === 0 && followerValues.length >= 2) {
+    newFollowers = followerValues[followerValues.length - 1].value - followerValues[0].value;
+    for (let i = 1; i < followerValues.length; i++) {
+      dailyNewFollowers.push({
+        date: followerValues[i].date,
+        value: followerValues[i].value - followerValues[i - 1].value,
+      });
     }
   }
 
