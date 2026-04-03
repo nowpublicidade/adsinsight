@@ -182,18 +182,34 @@ export default function Tracking() {
   };
 
   const handleUpdate = async () => {
-    if (!clientId || !updateMetricValue) return;
-    const { error } = await supabase.from("tracking_entries").insert({
-      client_id: clientId,
-      campaign_name: updateCampaign,
-      metric_value: parseFloat(updateMetricValue),
-      daily_budget: parseFloat(updateBudget) || 0,
-    });
-    if (error) {
-      toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
-      return;
+    if (!clientId) return;
+    const currentRow = campaignRows.find(r => r.campaign_name === updateCampaign);
+    if (!currentRow) return;
+    const metricVal = updateMetricValue ? parseFloat(updateMetricValue) : currentRow.current.metric_value;
+    const budgetVal = parseFloat(updateBudget) || 0;
+    // If only budget changed and metric is the same, update the latest entry instead of creating a new one
+    if (!updateMetricValue || metricVal === currentRow.current.metric_value) {
+      const { error } = await supabase
+        .from("tracking_entries")
+        .update({ daily_budget: budgetVal })
+        .eq("id", currentRow.current.id);
+      if (error) {
+        toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
+        return;
+      }
+    } else {
+      const { error } = await supabase.from("tracking_entries").insert({
+        client_id: clientId,
+        campaign_name: updateCampaign,
+        metric_value: metricVal,
+        daily_budget: budgetVal,
+      });
+      if (error) {
+        toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
+        return;
+      }
     }
-    toast({ title: "Métrica atualizada" });
+    toast({ title: "Atualização salva" });
     setUpdateDialogOpen(false);
     loadEntries();
   };
