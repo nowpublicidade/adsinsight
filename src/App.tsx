@@ -150,6 +150,14 @@ const App = () => (
               }
             />
             <Route
+              path="/dashboard/alerts"
+              element={
+                <ProtectedRoute>
+                  <Alerts />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/dashboard/optimizations"
               element={
                 <ProtectedRoute>
