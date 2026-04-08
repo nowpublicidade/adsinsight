@@ -253,11 +253,13 @@ export default function Alerts() {
 
   return (
     <DashboardLayout>
-      <PlatformHeader
-        title="Avisos"
-        description="Configure o envio automático de relatórios via WhatsApp"
-        icon={Bell}
-      />
+      <div className="flex items-center gap-3 mb-2">
+        <Bell className="h-6 w-6 text-primary" />
+        <div>
+          <h1 className="text-2xl font-bold">Avisos</h1>
+          <p className="text-sm text-muted-foreground">Configure o envio automático de relatórios via WhatsApp</p>
+        </div>
+      </div>
 
       <div className="space-y-6 mt-6">
         {/* Configs list */}
