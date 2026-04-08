@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.linkedin-insights]
 verify_jwt = false
+
+[functions.send-alert-report]
+verify_jwt = false

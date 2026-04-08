@@ -23,6 +23,7 @@ import Settings from "./pages/dashboard/Settings";
 import Optimizations from "./pages/dashboard/Optimizations";
 import OptimizationForm from "./pages/dashboard/OptimizationForm";
 import Tracking from "./pages/dashboard/Tracking";
+import Alerts from "./pages/dashboard/Alerts";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -145,6 +146,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Tracking />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/alerts"
+              element={
+                <ProtectedRoute>
+                  <Alerts />
                 </ProtectedRoute>
               }
             />
