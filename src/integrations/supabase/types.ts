@@ -14,6 +14,116 @@ export type Database = {
   }
   public: {
     Tables: {
+      alert_configs: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          message_template: string
+          meta_token: string
+          recipient_number: string
+          report_period: string
+          schedule_day: string
+          schedule_time: string
+          selected_metrics: Json
+          updated_at: string
+          whatsapp_api_key: string
+          whatsapp_api_url: string
+          whatsapp_instance_name: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_template: string
+          meta_token: string
+          recipient_number: string
+          report_period?: string
+          schedule_day: string
+          schedule_time: string
+          selected_metrics?: Json
+          updated_at?: string
+          whatsapp_api_key: string
+          whatsapp_api_url: string
+          whatsapp_instance_name: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_template?: string
+          meta_token?: string
+          recipient_number?: string
+          report_period?: string
+          schedule_day?: string
+          schedule_time?: string
+          selected_metrics?: Json
+          updated_at?: string
+          whatsapp_api_key?: string
+          whatsapp_api_url?: string
+          whatsapp_instance_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_configs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_logs: {
+        Row: {
+          alert_config_id: string
+          client_id: string
+          error_message: string | null
+          id: string
+          message_sent: string | null
+          meta_data: Json | null
+          sent_at: string
+          status: string
+        }
+        Insert: {
+          alert_config_id: string
+          client_id: string
+          error_message?: string | null
+          id?: string
+          message_sent?: string | null
+          meta_data?: Json | null
+          sent_at?: string
+          status: string
+        }
+        Update: {
+          alert_config_id?: string
+          client_id?: string
+          error_message?: string | null
+          id?: string
+          message_sent?: string | null
+          meta_data?: Json | null
+          sent_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_logs_alert_config_id_fkey"
+            columns: ["alert_config_id"]
+            isOneToOne: false
+            referencedRelation: "alert_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alert_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           created_at: string
