@@ -29,6 +29,7 @@ import {
   Lightbulb,
   Share2,
   ClipboardList,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
