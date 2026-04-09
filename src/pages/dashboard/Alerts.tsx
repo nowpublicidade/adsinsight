@@ -15,7 +15,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -62,7 +61,7 @@ const PERIODS = [
   { value: "1ano", label: "Último ano" },
 ];
 
-const AVAILABLE_METRICS = [
+const META_METRICS = [
   { key: "spend", label: "Investimento (Spend)", group: "Tráfego" },
   { key: "impressions", label: "Impressões", group: "Tráfego" },
   { key: "clicks", label: "Cliques", group: "Tráfego" },
@@ -95,11 +94,26 @@ const AVAILABLE_METRICS = [
   { key: "cost_per_view_content", label: "Custo por Visualização", group: "Engajamento" },
 ];
 
-const TEMPLATE_VARS = AVAILABLE_METRICS.map(m => `{{${m.key}}}`).concat(["{{period}}", "{{client_name}}"]);
+const GOOGLE_ADS_METRICS = [
+  { key: "cost", label: "Investimento (Cost)", group: "Tráfego" },
+  { key: "impressions", label: "Impressões", group: "Tráfego" },
+  { key: "clicks", label: "Cliques", group: "Tráfego" },
+  { key: "ctr", label: "CTR", group: "Tráfego" },
+  { key: "average_cpc", label: "CPC Médio", group: "Tráfego" },
+  { key: "average_cpm", label: "CPM Médio", group: "Tráfego" },
+  { key: "conversions", label: "Conversões", group: "Conversões" },
+  { key: "conversion_value", label: "Valor de Conversões", group: "Conversões" },
+  { key: "cost_per_conversion", label: "Custo por Conversão", group: "Conversões" },
+  { key: "conversion_rate", label: "Taxa de Conversão", group: "Conversões" },
+];
+
+const META_GROUPS = ["Tráfego", "Conversões", "E-commerce", "Engajamento"];
+const GOOGLE_GROUPS = ["Tráfego", "Conversões"];
 
 interface AlertConfig {
   id: string;
   client_id: string;
+  channel: string;
   whatsapp_instance_name: string;
   whatsapp_api_url: string;
   whatsapp_api_key: string;
@@ -124,6 +138,7 @@ interface AlertLog {
 }
 
 const defaultForm = {
+  channel: "meta" as string,
   whatsapp_instance_name: "",
   whatsapp_api_url: "https://evo.agencianowpublicidade.online",
   whatsapp_api_key: "",
@@ -148,6 +163,10 @@ export default function Alerts() {
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
+
+  const currentMetrics = form.channel === "google_ads" ? GOOGLE_ADS_METRICS : META_METRICS;
+  const currentGroups = form.channel === "google_ads" ? GOOGLE_GROUPS : META_GROUPS;
+  const templateVars = currentMetrics.map(m => `{{${m.key}}}`).concat(["{{period}}", "{{client_name}}"]);
 
   useEffect(() => {
     if (clientId) fetchData();
@@ -182,10 +201,11 @@ export default function Alerts() {
   function openEdit(config: AlertConfig) {
     setEditingId(config.id);
     setForm({
+      channel: config.channel || "meta",
       whatsapp_instance_name: config.whatsapp_instance_name,
       whatsapp_api_url: config.whatsapp_api_url,
       whatsapp_api_key: config.whatsapp_api_key,
-      meta_token: config.meta_token,
+      meta_token: config.meta_token || "",
       recipient_number: config.recipient_number,
       schedule_day: config.schedule_day,
       schedule_time: config.schedule_time,
@@ -199,8 +219,13 @@ export default function Alerts() {
 
   async function handleSave() {
     if (!clientId) return;
-    if (!form.whatsapp_instance_name || !form.whatsapp_api_key || !form.meta_token || !form.recipient_number || !form.message_template) {
+    const isMeta = form.channel === "meta";
+    if (!form.whatsapp_instance_name || !form.whatsapp_api_key || !form.recipient_number || !form.message_template) {
       toast({ title: "Preencha todos os campos obrigatórios", variant: "destructive" });
+      return;
+    }
+    if (isMeta && !form.meta_token) {
+      toast({ title: "Token do Meta é obrigatório para canal Meta Ads", variant: "destructive" });
       return;
     }
 
@@ -243,7 +268,6 @@ export default function Alerts() {
   async function handleSendNow(configId: string) {
     setSending(configId);
     try {
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       const res = await supabase.functions.invoke("send-alert-report", {
         body: { alert_config_id: configId },
       });
@@ -266,8 +290,18 @@ export default function Alerts() {
     }));
   }
 
+  function handleChannelChange(channel: string) {
+    setForm((prev) => ({
+      ...prev,
+      channel,
+      selected_metrics: [],
+      meta_token: channel === "google_ads" ? "" : prev.meta_token,
+    }));
+  }
+
   const dayLabel = (val: string) => DAYS_OF_WEEK.find((d) => d.value === val)?.label || val;
   const periodLabel = (val: string) => PERIODS.find((p) => p.value === val)?.label || val;
+  const channelLabel = (val: string) => val === "google_ads" ? "Google Ads" : "Meta Ads";
 
   return (
     <DashboardLayout>
@@ -298,6 +332,7 @@ export default function Alerts() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Canal</TableHead>
                       <TableHead>Instância</TableHead>
                       <TableHead>Número</TableHead>
                       <TableHead>Dia / Horário</TableHead>
@@ -309,6 +344,11 @@ export default function Alerts() {
                   <TableBody>
                     {configs.map((c) => (
                       <TableRow key={c.id}>
+                        <TableCell>
+                          <Badge variant={c.channel === "google_ads" ? "secondary" : "default"}>
+                            {channelLabel(c.channel || "meta")}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="font-medium">{c.whatsapp_instance_name}</TableCell>
                         <TableCell>{c.recipient_number}</TableCell>
                         <TableCell>
@@ -410,6 +450,22 @@ export default function Alerts() {
           </DialogHeader>
 
           <div className="space-y-5 py-2">
+            {/* Channel selector */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Canal
+              </h3>
+              <Select value={form.channel} onValueChange={handleChannelChange}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="meta">Meta Ads</SelectItem>
+                  <SelectItem value="google_ads">Google Ads</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* WhatsApp config */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -451,21 +507,23 @@ export default function Alerts() {
               </div>
             </div>
 
-            {/* Meta config */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Configuração Meta
-              </h3>
-              <div>
-                <Label>Token do Meta *</Label>
-                <Input
-                  type="password"
-                  value={form.meta_token}
-                  onChange={(e) => setForm({ ...form, meta_token: e.target.value })}
-                  placeholder="Token de acesso"
-                />
+            {/* Meta config - only for Meta channel */}
+            {form.channel === "meta" && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Configuração Meta
+                </h3>
+                <div>
+                  <Label>Token do Meta *</Label>
+                  <Input
+                    type="password"
+                    value={form.meta_token}
+                    onChange={(e) => setForm({ ...form, meta_token: e.target.value })}
+                    placeholder="Token de acesso"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Schedule */}
             <div className="space-y-3">
@@ -509,13 +567,13 @@ export default function Alerts() {
             {/* Metrics */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Métricas
+                Métricas ({form.channel === "google_ads" ? "Google Ads" : "Meta Ads"})
               </h3>
-              {["Tráfego", "Conversões", "E-commerce", "Engajamento"].map((group) => (
+              {currentGroups.map((group) => (
                 <div key={group} className="space-y-1.5">
                   <p className="text-xs font-medium text-muted-foreground">{group}</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {AVAILABLE_METRICS.filter(m => m.group === group).map((m) => (
+                    {currentMetrics.filter(m => m.group === group).map((m) => (
                       <label key={m.key} className="flex items-center gap-2 text-sm cursor-pointer">
                         <Checkbox
                           checked={form.selected_metrics.includes(m.key)}
@@ -547,11 +605,15 @@ export default function Alerts() {
               <Textarea
                 value={form.message_template}
                 onChange={(e) => setForm({ ...form, message_template: e.target.value })}
-                placeholder={`Olá {{client_name}}! Segue seu relatório do período {{period}}:\n\n💰 Investimento: {{spend}}\n👁️ Impressões: {{impressions}}\n🖱️ Cliques: {{clicks}}\n📊 CTR: {{ctr}}`}
+                placeholder={
+                  form.channel === "google_ads"
+                    ? `Olá {{client_name}}! Relatório Google Ads ({{period}}):\n\n💰 Investimento: {{cost}}\n👁️ Impressões: {{impressions}}\n🖱️ Cliques: {{clicks}}\n📊 CTR: {{ctr}}`
+                    : `Olá {{client_name}}! Segue seu relatório do período {{period}}:\n\n💰 Investimento: {{spend}}\n👁️ Impressões: {{impressions}}\n🖱️ Cliques: {{clicks}}\n📊 CTR: {{ctr}}`
+                }
                 rows={6}
               />
               <div className="flex flex-wrap gap-1.5">
-                {TEMPLATE_VARS.map((v) => (
+                {templateVars.map((v) => (
                   <button
                     key={v}
                     type="button"
