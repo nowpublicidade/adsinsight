@@ -38,6 +38,22 @@ function getDateRange(period: string): { since: string; until: string } {
   return { since: fmt(since), until: fmt(until) };
 }
 
+function mapPeriodToGooglePreset(period: string): string {
+  switch (period) {
+    case "ontem": return "yesterday";
+    case "hoje": return "today";
+    case "3dias": return "last_7d";
+    case "7dias": return "last_7d";
+    case "15dias": return "last_14d";
+    case "30dias": return "last_30d";
+    case "60dias": return "last_90d";
+    case "90dias": return "last_90d";
+    case "6meses": return "last_365d";
+    case "1ano": return "last_365d";
+    default: return "last_7d";
+  }
+}
+
 function formatCurrency(val: number): string {
   return `R$ ${val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -90,6 +106,97 @@ function wasAlreadySentForSlot(logs: Array<{ sent_at: string }>, scheduleTime: s
   });
 }
 
+async function fetchMetaData(config: any): Promise<Record<string, string>> {
+  const adAccountId = config.clients?.meta_ad_account_id;
+  if (!adAccountId) throw new Error("Cliente sem conta de anúncios Meta configurada");
+
+  const { since, until } = getDateRange(config.report_period);
+  const timeRange = JSON.stringify({ since, until });
+  const normalizedAccountId = String(adAccountId).startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  const metaUrl = `https://graph.facebook.com/v24.0/${normalizedAccountId}/insights?time_range=${encodeURIComponent(timeRange)}&fields=${META_INSIGHTS_FIELDS}&access_token=${config.meta_token}`;
+
+  const metaRes = await fetch(metaUrl);
+  const metaJson = await metaRes.json();
+
+  if (metaJson.error) throw new Error(`Meta API error: ${metaJson.error.message}`);
+
+  const rawMetrics = metaJson.data?.[0] || {};
+  const agg = extractMetaMetrics(rawMetrics);
+
+  return {
+    spend: formatCurrency(agg.spend),
+    impressions: formatNumber(agg.impressions),
+    clicks: formatNumber(agg.clicks),
+    cpc: formatCurrency(agg.cpc),
+    cpm: formatCurrency(agg.cpm),
+    ctr: `${agg.ctr.toFixed(2)}%`,
+    reach: formatNumber(agg.reach),
+    frequency: agg.frequency.toFixed(2),
+    leads: formatNumber(agg.leads),
+    cost_per_lead: formatCurrency(agg.costPerLead),
+    pixel_leads: formatNumber(agg.pixelLeads),
+    cost_per_pixel_lead: formatCurrency(agg.costPerPixelLead),
+    form_leads: formatNumber(agg.formLeads),
+    cost_per_form_lead: formatCurrency(agg.costPerFormLead),
+    message_leads: formatNumber(agg.messageLeads),
+    cost_per_message: formatCurrency(agg.costPerMessage),
+    purchases: formatNumber(agg.purchases),
+    cost_per_purchase: formatCurrency(agg.costPerPurchase),
+    complete_registration: formatNumber(agg.completeRegistration),
+    cost_per_registration: formatCurrency(agg.costPerRegistration),
+    add_to_cart: formatNumber(agg.addToCart),
+    cost_per_add_to_cart: formatCurrency(agg.costPerAddToCart),
+    initiate_checkout: formatNumber(agg.initiateCheckout),
+    cost_per_checkout: formatCurrency(agg.costPerCheckout),
+    link_clicks: formatNumber(agg.linkClicks),
+    cost_per_link_click: formatCurrency(agg.costPerLinkClick),
+    view_content: formatNumber(agg.viewContent),
+    cost_per_view_content: formatCurrency(agg.costPerViewContent),
+    results: formatNumber(agg.results),
+    cost_per_result: formatCurrency(agg.costPerResult),
+    period: `${since} a ${until}`,
+    client_name: config.clients?.name || "",
+  };
+}
+
+async function fetchGoogleAdsData(config: any, supabaseUrl: string, serviceKey: string): Promise<Record<string, string>> {
+  const datePreset = mapPeriodToGooglePreset(config.report_period);
+  const { since, until } = getDateRange(config.report_period);
+
+  const googleInsightsUrl = `${supabaseUrl}/functions/v1/google-ads-insights`;
+  const res = await fetch(googleInsightsUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${serviceKey}`,
+    },
+    body: JSON.stringify({
+      client_id: config.client_id,
+      date_preset: datePreset,
+    }),
+  });
+
+  const data = await res.json();
+  if (data.error) throw new Error(`Google Ads error: ${data.error}`);
+
+  const m = data.metrics || {};
+
+  return {
+    cost: formatCurrency(m.cost || 0),
+    impressions: formatNumber(m.impressions || 0),
+    clicks: formatNumber(m.clicks || 0),
+    conversions: formatNumber(m.conversions || 0),
+    conversion_value: formatCurrency(m.conversion_value || 0),
+    ctr: `${(m.ctr || 0).toFixed(2)}%`,
+    average_cpc: formatCurrency(m.average_cpc || 0),
+    average_cpm: formatCurrency(m.average_cpm || 0),
+    cost_per_conversion: formatCurrency(m.cost_per_conversion || 0),
+    conversion_rate: `${(m.conversion_rate || 0).toFixed(2)}%`,
+    period: `${since} a ${until}`,
+    client_name: config.clients?.name || "",
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -116,7 +223,7 @@ Deno.serve(async (req) => {
 
       const { data, error } = await supabase
         .from("alert_configs")
-        .select("*, clients(name, meta_ad_account_id)")
+        .select("*, clients(name, meta_ad_account_id, google_customer_id)")
         .eq("is_active", true)
         .eq("schedule_day", now.weekday)
         .gte("schedule_time", windowStart)
@@ -129,21 +236,15 @@ Deno.serve(async (req) => {
         const { data: recentLogs, error: logsError } = await supabase
           .from("alert_logs")
           .select("alert_config_id, sent_at")
-          .in("alert_config_id", candidates.map((config) => config.id))
+          .in("alert_config_id", candidates.map((c: any) => c.id))
           .gte("sent_at", new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString());
 
-        if (logsError) {
-          console.error("[CRON] Logs query error:", logsError.message);
-        }
+        if (logsError) console.error("[CRON] Logs query error:", logsError.message);
 
-        configs = candidates.filter((config) => {
-          const configLogs = (recentLogs || []).filter((log) => log.alert_config_id === config.id);
+        configs = candidates.filter((config: any) => {
+          const configLogs = (recentLogs || []).filter((log: any) => log.alert_config_id === config.id);
           const alreadySent = wasAlreadySentForSlot(configLogs, config.schedule_time, now.date);
-
-          if (alreadySent) {
-            console.log(`[CRON] Skipping ${config.id}: already sent for this time slot`);
-          }
-
+          if (alreadySent) console.log(`[CRON] Skipping ${config.id}: already sent`);
           return !alreadySent;
         });
       }
@@ -152,7 +253,7 @@ Deno.serve(async (req) => {
     } else if (alert_config_id) {
       const { data } = await supabase
         .from("alert_configs")
-        .select("*, clients(name, meta_ad_account_id)")
+        .select("*, clients(name, meta_ad_account_id, google_customer_id)")
         .eq("id", alert_config_id)
         .single();
 
@@ -169,63 +270,14 @@ Deno.serve(async (req) => {
 
     for (const config of configs) {
       try {
-        const adAccountId = config.clients?.meta_ad_account_id;
-        if (!adAccountId) {
-          throw new Error("Cliente sem conta de anúncios Meta configurada");
+        const channel = config.channel || "meta";
+        let vars: Record<string, string>;
+
+        if (channel === "google_ads") {
+          vars = await fetchGoogleAdsData(config, supabaseUrl, serviceKey);
+        } else {
+          vars = await fetchMetaData(config);
         }
-
-        const { since, until } = getDateRange(config.report_period);
-
-        const fields = META_INSIGHTS_FIELDS;
-        const timeRange = JSON.stringify({ since, until });
-        const normalizedAccountId = String(adAccountId).startsWith("act_") ? adAccountId : `act_${adAccountId}`;
-        const metaUrl = `https://graph.facebook.com/v24.0/${normalizedAccountId}/insights?time_range=${encodeURIComponent(timeRange)}&fields=${fields}&access_token=${config.meta_token}`;
-
-        const metaRes = await fetch(metaUrl);
-        const metaJson = await metaRes.json();
-
-        if (metaJson.error) {
-          throw new Error(`Meta API error: ${metaJson.error.message}`);
-        }
-
-        const rawMetrics = metaJson.data?.[0] || {};
-        const agg = extractMetaMetrics(rawMetrics);
-
-        // Build full variables map
-        const vars: Record<string, string> = {
-          spend: formatCurrency(agg.spend),
-          impressions: formatNumber(agg.impressions),
-          clicks: formatNumber(agg.clicks),
-          cpc: formatCurrency(agg.cpc),
-          cpm: formatCurrency(agg.cpm),
-          ctr: `${agg.ctr.toFixed(2)}%`,
-          reach: formatNumber(agg.reach),
-          frequency: agg.frequency.toFixed(2),
-          leads: formatNumber(agg.leads),
-          cost_per_lead: formatCurrency(agg.costPerLead),
-          pixel_leads: formatNumber(agg.pixelLeads),
-          cost_per_pixel_lead: formatCurrency(agg.costPerPixelLead),
-          form_leads: formatNumber(agg.formLeads),
-          cost_per_form_lead: formatCurrency(agg.costPerFormLead),
-          message_leads: formatNumber(agg.messageLeads),
-          cost_per_message: formatCurrency(agg.costPerMessage),
-          purchases: formatNumber(agg.purchases),
-          cost_per_purchase: formatCurrency(agg.costPerPurchase),
-          complete_registration: formatNumber(agg.completeRegistration),
-          cost_per_registration: formatCurrency(agg.costPerRegistration),
-          add_to_cart: formatNumber(agg.addToCart),
-          cost_per_add_to_cart: formatCurrency(agg.costPerAddToCart),
-          initiate_checkout: formatNumber(agg.initiateCheckout),
-          cost_per_checkout: formatCurrency(agg.costPerCheckout),
-          link_clicks: formatNumber(agg.linkClicks),
-          cost_per_link_click: formatCurrency(agg.costPerLinkClick),
-          view_content: formatNumber(agg.viewContent),
-          cost_per_view_content: formatCurrency(agg.costPerViewContent),
-          results: formatNumber(agg.results),
-          cost_per_result: formatCurrency(agg.costPerResult),
-          period: `${since} a ${until}`,
-          client_name: config.clients?.name || "",
-        };
 
         const finalMessage = replacePlaceholders(config.message_template, vars);
 
@@ -243,14 +295,14 @@ Deno.serve(async (req) => {
           }),
         });
 
-        const waJson = await waRes.json().catch(() => ({}));
+        await waRes.json().catch(() => ({}));
 
         await supabase.from("alert_logs").insert({
           alert_config_id: config.id,
           client_id: config.client_id,
           status: "success",
-          meta_data: { aggregated: agg, raw: rawMetrics, rows_count: Array.isArray(metaJson.data) ? metaJson.data.length : 0 },
           message_sent: finalMessage,
+          meta_data: { channel },
         });
 
         results.push({ id: config.id, status: "success" });
