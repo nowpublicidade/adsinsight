@@ -63,21 +63,39 @@ const PERIODS = [
 ];
 
 const AVAILABLE_METRICS = [
-  { key: "spend", label: "Investimento (spend)" },
-  { key: "impressions", label: "Impressões" },
-  { key: "clicks", label: "Cliques" },
-  { key: "cpc", label: "CPC" },
-  { key: "cpm", label: "CPM" },
-  { key: "ctr", label: "CTR" },
-  { key: "reach", label: "Alcance" },
-  { key: "leads", label: "Leads" },
-  { key: "cost_per_lead", label: "Custo por Lead" },
+  { key: "spend", label: "Investimento (Spend)", group: "Tráfego" },
+  { key: "impressions", label: "Impressões", group: "Tráfego" },
+  { key: "clicks", label: "Cliques", group: "Tráfego" },
+  { key: "reach", label: "Alcance", group: "Tráfego" },
+  { key: "cpc", label: "CPC", group: "Tráfego" },
+  { key: "cpm", label: "CPM", group: "Tráfego" },
+  { key: "ctr", label: "CTR", group: "Tráfego" },
+  { key: "frequency", label: "Frequência", group: "Tráfego" },
+  { key: "leads", label: "Leads (Pixel + Mensagens)", group: "Conversões" },
+  { key: "cost_per_lead", label: "Custo por Lead", group: "Conversões" },
+  { key: "pixel_leads", label: "Form (Pixel)", group: "Conversões" },
+  { key: "cost_per_pixel_lead", label: "Custo por Form", group: "Conversões" },
+  { key: "form_leads", label: "Formulários (Lead Ads)", group: "Conversões" },
+  { key: "cost_per_form_lead", label: "Custo por Formulário", group: "Conversões" },
+  { key: "message_leads", label: "Mensagens", group: "Conversões" },
+  { key: "cost_per_message", label: "Custo por Mensagem", group: "Conversões" },
+  { key: "results", label: "Resultados (Objetivo)", group: "Conversões" },
+  { key: "cost_per_result", label: "Custo por Resultado", group: "Conversões" },
+  { key: "purchases", label: "Compras", group: "E-commerce" },
+  { key: "cost_per_purchase", label: "Custo por Compra", group: "E-commerce" },
+  { key: "complete_registration", label: "Registros Completos", group: "E-commerce" },
+  { key: "cost_per_registration", label: "Custo por Registro", group: "E-commerce" },
+  { key: "add_to_cart", label: "Adicionar ao Carrinho", group: "E-commerce" },
+  { key: "cost_per_add_to_cart", label: "Custo por Carrinho", group: "E-commerce" },
+  { key: "initiate_checkout", label: "Iniciar Checkout", group: "E-commerce" },
+  { key: "cost_per_checkout", label: "Custo por Checkout", group: "E-commerce" },
+  { key: "link_clicks", label: "Cliques no Link", group: "Engajamento" },
+  { key: "cost_per_link_click", label: "Custo por Clique no Link", group: "Engajamento" },
+  { key: "view_content", label: "Visualização de Conteúdo", group: "Engajamento" },
+  { key: "cost_per_view_content", label: "Custo por Visualização", group: "Engajamento" },
 ];
 
-const TEMPLATE_VARS = [
-  "{{spend}}", "{{impressions}}", "{{clicks}}", "{{cpc}}", "{{cpm}}",
-  "{{ctr}}", "{{reach}}", "{{leads}}", "{{cost_per_lead}}", "{{period}}", "{{client_name}}",
-];
+const TEMPLATE_VARS = AVAILABLE_METRICS.map(m => `{{${m.key}}}`).concat(["{{period}}", "{{client_name}}"]);
 
 interface AlertConfig {
   id: string;
