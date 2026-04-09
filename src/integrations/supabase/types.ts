@@ -16,12 +16,13 @@ export type Database = {
     Tables: {
       alert_configs: {
         Row: {
+          channel: string
           client_id: string
           created_at: string
           id: string
           is_active: boolean
           message_template: string
-          meta_token: string
+          meta_token: string | null
           recipient_number: string
           report_period: string
           schedule_day: string
@@ -33,12 +34,13 @@ export type Database = {
           whatsapp_instance_name: string
         }
         Insert: {
+          channel?: string
           client_id: string
           created_at?: string
           id?: string
           is_active?: boolean
           message_template: string
-          meta_token: string
+          meta_token?: string | null
           recipient_number: string
           report_period?: string
           schedule_day: string
@@ -50,12 +52,13 @@ export type Database = {
           whatsapp_instance_name: string
         }
         Update: {
+          channel?: string
           client_id?: string
           created_at?: string
           id?: string
           is_active?: boolean
           message_template?: string
-          meta_token?: string
+          meta_token?: string | null
           recipient_number?: string
           report_period?: string
           schedule_day?: string
