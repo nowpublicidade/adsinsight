@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { extractMetaMetrics, META_INSIGHTS_FIELDS } from "../_shared/metaMetrics.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,107 +46,6 @@ function formatNumber(val: number): string {
   return val.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 }
 
-interface MetaInsightsRow {
-  spend?: string;
-  impressions?: string;
-  clicks?: string;
-  cpc?: string;
-  cpm?: string;
-  cpp?: string;
-  ctr?: string;
-  reach?: string;
-  actions?: Array<{ action_type: string; value: string }>;
-  cost_per_action_type?: Array<{ action_type: string; value: string }>;
-  campaign_name?: string;
-  [key: string]: unknown;
-}
-
-function getActionValue(actions: Array<{ action_type: string; value: string }> | undefined, types: string[]): number {
-  if (!actions) return 0;
-  let total = 0;
-  for (const a of actions) {
-    if (types.includes(a.action_type)) {
-      total += parseInt(a.value, 10);
-    }
-  }
-  return total;
-}
-
-function aggregateMetrics(rows: MetaInsightsRow[]) {
-  let spend = 0, impressions = 0, clicks = 0, reach = 0;
-  let pixelLeads = 0, formLeads = 0, messageLeads = 0;
-  let purchases = 0, purchaseValue = 0;
-  let completeRegistration = 0, addToCart = 0, initiateCheckout = 0;
-  let linkClicks = 0, viewContent = 0;
-  let results = 0;
-
-  for (const row of rows) {
-    spend += parseFloat(row.spend || "0");
-    impressions += parseInt(row.impressions || "0", 10);
-    clicks += parseInt(row.clicks || "0", 10);
-    reach += parseInt(row.reach || "0", 10);
-
-    const actions = row.actions;
-    pixelLeads += getActionValue(actions, ["offsite_conversion.fb_pixel_lead", "lead"]);
-    formLeads += getActionValue(actions, ["leadgen_grouped", "onsite_conversion.leadgen_grouped"]);
-    messageLeads += getActionValue(actions, [
-      "onsite_conversion.messaging_first_reply",
-      "onsite_conversion.messaging_conversation_started_7d",
-    ]);
-    purchases += getActionValue(actions, ["offsite_conversion.fb_pixel_purchase", "purchase"]);
-    completeRegistration += getActionValue(actions, [
-      "offsite_conversion.fb_pixel_complete_registration", "complete_registration",
-    ]);
-    addToCart += getActionValue(actions, ["offsite_conversion.fb_pixel_add_to_cart", "add_to_cart"]);
-    initiateCheckout += getActionValue(actions, [
-      "offsite_conversion.fb_pixel_initiate_checkout", "initiate_checkout",
-    ]);
-    linkClicks += getActionValue(actions, ["link_click"]);
-    viewContent += getActionValue(actions, [
-      "offsite_conversion.fb_pixel_view_content", "view_content",
-    ]);
-    results += getActionValue(actions, [
-      "offsite_conversion.fb_pixel_lead", "lead",
-      "offsite_conversion.fb_pixel_purchase", "purchase",
-      "leadgen_grouped", "onsite_conversion.leadgen_grouped",
-      "onsite_conversion.messaging_first_reply",
-    ]);
-
-    // Purchase value
-    if (actions) {
-      for (const a of actions) {
-        if (["offsite_conversion.fb_pixel_purchase", "purchase"].includes(a.action_type)) {
-          // value is count, need action_values for monetary
-        }
-      }
-    }
-  }
-
-  const leads = pixelLeads + messageLeads;
-  const cpc = clicks > 0 ? spend / clicks : 0;
-  const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
-  const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-  const frequency = reach > 0 ? impressions / reach : 0;
-
-  return {
-    spend, impressions, clicks, reach, cpc, cpm, ctr, frequency,
-    leads, pixelLeads, formLeads, messageLeads,
-    purchases, completeRegistration, addToCart, initiateCheckout,
-    linkClicks, viewContent, results,
-    costPerLead: leads > 0 ? spend / leads : 0,
-    costPerPixelLead: pixelLeads > 0 ? spend / pixelLeads : 0,
-    costPerFormLead: formLeads > 0 ? spend / formLeads : 0,
-    costPerMessage: messageLeads > 0 ? spend / messageLeads : 0,
-    costPerPurchase: purchases > 0 ? spend / purchases : 0,
-    costPerRegistration: completeRegistration > 0 ? spend / completeRegistration : 0,
-    costPerAddToCart: addToCart > 0 ? spend / addToCart : 0,
-    costPerCheckout: initiateCheckout > 0 ? spend / initiateCheckout : 0,
-    costPerLinkClick: linkClicks > 0 ? spend / linkClicks : 0,
-    costPerViewContent: viewContent > 0 ? spend / viewContent : 0,
-    costPerResult: results > 0 ? spend / results : 0,
-  };
-}
-
 function replacePlaceholders(template: string, vars: Record<string, string>): string {
   let msg = template;
   for (const [key, value] of Object.entries(vars)) {
@@ -154,26 +54,40 @@ function replacePlaceholders(template: string, vars: Record<string, string>): st
   return msg;
 }
 
-/** Get current time in America/Sao_Paulo timezone */
-function getBrazilNow(): Date {
-  const utc = new Date();
-  // Create a formatter to get the Brazil time components
+function getBrazilDateTimeParts(date = new Date()) {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Sao_Paulo",
+    weekday: "long",
     year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", second: "2-digit",
     hour12: false,
   });
-  const parts = fmt.formatToParts(utc);
+  const parts = fmt.formatToParts(date);
   const get = (type: string) => parts.find(p => p.type === type)?.value || "0";
-  return new Date(
-    parseInt(get("year")),
-    parseInt(get("month")) - 1,
-    parseInt(get("day")),
-    parseInt(get("hour")),
-    parseInt(get("minute")),
-    parseInt(get("second")),
-  );
+  const hour = parseInt(get("hour"), 10);
+  const minute = parseInt(get("minute"), 10);
+
+  return {
+    date: `${get("year")}-${get("month")}-${get("day")}`,
+    time: `${get("hour")}:${get("minute")}:${get("second")}`,
+    weekday: get("weekday").toLowerCase(),
+    hour,
+    minute,
+  };
+}
+
+function formatTimeFromMinutes(totalMinutes: number, second: "00" | "59") {
+  const safeMinutes = Math.max(0, Math.min(totalMinutes, 23 * 60 + 59));
+  const hour = Math.floor(safeMinutes / 60);
+  const minute = safeMinutes % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:${second}`;
+}
+
+function wasAlreadySentForSlot(logs: Array<{ sent_at: string }>, scheduleTime: string, currentBrazilDate: string) {
+  return logs.some((log) => {
+    const sentParts = getBrazilDateTimeParts(new Date(log.sent_at));
+    return sentParts.date === currentBrazilDate && sentParts.time >= scheduleTime;
+  });
 }
 
 Deno.serve(async (req) => {
@@ -192,24 +106,48 @@ Deno.serve(async (req) => {
     let configs: any[] = [];
 
     if (send_all) {
-      // Use Brazil timezone for schedule matching
-      const now = getBrazilNow();
-      const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const currentDay = days[now.getDay()];
-      const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const now = getBrazilDateTimeParts();
+      const currentMinuteOfDay = now.hour * 60 + now.minute;
+      const windowStart = formatTimeFromMinutes(Math.max(currentMinuteOfDay - 1, 0), "00");
+      const windowEnd = formatTimeFromMinutes(currentMinuteOfDay, "59");
 
-      console.log(`[CRON] Brazil time: ${currentDay} ${currentTime}`);
+      console.log(`[CRON] Brazil time: ${now.weekday} ${now.time}`);
+      console.log(`[CRON] Matching window: ${windowStart} -> ${windowEnd}`);
 
       const { data, error } = await supabase
         .from("alert_configs")
         .select("*, clients(name, meta_ad_account_id)")
         .eq("is_active", true)
-        .eq("schedule_day", currentDay)
-        .gte("schedule_time", currentTime + ":00")
-        .lte("schedule_time", currentTime + ":59");
+        .eq("schedule_day", now.weekday)
+        .gte("schedule_time", windowStart)
+        .lte("schedule_time", windowEnd);
 
       if (error) console.error("[CRON] Query error:", error.message);
-      configs = data || [];
+      const candidates = data || [];
+
+      if (candidates.length > 0) {
+        const { data: recentLogs, error: logsError } = await supabase
+          .from("alert_logs")
+          .select("alert_config_id, sent_at")
+          .in("alert_config_id", candidates.map((config) => config.id))
+          .gte("sent_at", new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString());
+
+        if (logsError) {
+          console.error("[CRON] Logs query error:", logsError.message);
+        }
+
+        configs = candidates.filter((config) => {
+          const configLogs = (recentLogs || []).filter((log) => log.alert_config_id === config.id);
+          const alreadySent = wasAlreadySentForSlot(configLogs, config.schedule_time, now.date);
+
+          if (alreadySent) {
+            console.log(`[CRON] Skipping ${config.id}: already sent for this time slot`);
+          }
+
+          return !alreadySent;
+        });
+      }
+
       console.log(`[CRON] Found ${configs.length} alerts to send`);
     } else if (alert_config_id) {
       const { data } = await supabase
@@ -238,9 +176,10 @@ Deno.serve(async (req) => {
 
         const { since, until } = getDateRange(config.report_period);
 
-        const fields = "campaign_name,spend,impressions,clicks,cpc,cpm,cpp,ctr,reach,actions,cost_per_action_type";
+        const fields = META_INSIGHTS_FIELDS;
         const timeRange = JSON.stringify({ since, until });
-        const metaUrl = `https://graph.facebook.com/v21.0/act_${adAccountId}/insights?time_increment=1&level=ad&limit=3000&time_range=${encodeURIComponent(timeRange)}&fields=${fields}&access_token=${config.meta_token}`;
+        const normalizedAccountId = String(adAccountId).startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+        const metaUrl = `https://graph.facebook.com/v24.0/${normalizedAccountId}/insights?time_range=${encodeURIComponent(timeRange)}&fields=${fields}&access_token=${config.meta_token}`;
 
         const metaRes = await fetch(metaUrl);
         const metaJson = await metaRes.json();
@@ -249,16 +188,8 @@ Deno.serve(async (req) => {
           throw new Error(`Meta API error: ${metaJson.error.message}`);
         }
 
-        let allRows: MetaInsightsRow[] = metaJson.data || [];
-        let nextUrl = metaJson.paging?.next;
-        while (nextUrl) {
-          const nextRes = await fetch(nextUrl);
-          const nextJson = await nextRes.json();
-          allRows = allRows.concat(nextJson.data || []);
-          nextUrl = nextJson.paging?.next;
-        }
-
-        const agg = aggregateMetrics(allRows);
+        const rawMetrics = metaJson.data?.[0] || {};
+        const agg = extractMetaMetrics(rawMetrics);
 
         // Build full variables map
         const vars: Record<string, string> = {
@@ -318,7 +249,7 @@ Deno.serve(async (req) => {
           alert_config_id: config.id,
           client_id: config.client_id,
           status: "success",
-          meta_data: { aggregated: agg, rows_count: allRows.length },
+          meta_data: { aggregated: agg, raw: rawMetrics, rows_count: Array.isArray(metaJson.data) ? metaJson.data.length : 0 },
           message_sent: finalMessage,
         });
 
