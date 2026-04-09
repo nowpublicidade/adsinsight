@@ -8,7 +8,7 @@ const corsHeaders = {
 function getDateRange(period: string): { since: string; until: string } {
   const now = new Date();
   const until = new Date(now);
-  until.setDate(until.getDate() - 1); // yesterday
+  until.setDate(until.getDate() - 1);
 
   let daysBack = 7;
   switch (period) {
@@ -60,9 +60,24 @@ interface MetaInsightsRow {
   [key: string]: unknown;
 }
 
+function getActionValue(actions: Array<{ action_type: string; value: string }> | undefined, types: string[]): number {
+  if (!actions) return 0;
+  let total = 0;
+  for (const a of actions) {
+    if (types.includes(a.action_type)) {
+      total += parseInt(a.value, 10);
+    }
+  }
+  return total;
+}
+
 function aggregateMetrics(rows: MetaInsightsRow[]) {
   let spend = 0, impressions = 0, clicks = 0, reach = 0;
-  let leads = 0, costPerLead = 0;
+  let pixelLeads = 0, formLeads = 0, messageLeads = 0;
+  let purchases = 0, purchaseValue = 0;
+  let completeRegistration = 0, addToCart = 0, initiateCheckout = 0;
+  let linkClicks = 0, viewContent = 0;
+  let results = 0;
 
   for (const row of rows) {
     spend += parseFloat(row.spend || "0");
@@ -70,21 +85,65 @@ function aggregateMetrics(rows: MetaInsightsRow[]) {
     clicks += parseInt(row.clicks || "0", 10);
     reach += parseInt(row.reach || "0", 10);
 
-    if (row.actions) {
-      for (const a of row.actions) {
-        if (a.action_type === "lead" || a.action_type === "onsite_conversion.lead_grouped") {
-          leads += parseInt(a.value, 10);
+    const actions = row.actions;
+    pixelLeads += getActionValue(actions, ["offsite_conversion.fb_pixel_lead", "lead"]);
+    formLeads += getActionValue(actions, ["leadgen_grouped", "onsite_conversion.leadgen_grouped"]);
+    messageLeads += getActionValue(actions, [
+      "onsite_conversion.messaging_first_reply",
+      "onsite_conversion.messaging_conversation_started_7d",
+    ]);
+    purchases += getActionValue(actions, ["offsite_conversion.fb_pixel_purchase", "purchase"]);
+    completeRegistration += getActionValue(actions, [
+      "offsite_conversion.fb_pixel_complete_registration", "complete_registration",
+    ]);
+    addToCart += getActionValue(actions, ["offsite_conversion.fb_pixel_add_to_cart", "add_to_cart"]);
+    initiateCheckout += getActionValue(actions, [
+      "offsite_conversion.fb_pixel_initiate_checkout", "initiate_checkout",
+    ]);
+    linkClicks += getActionValue(actions, ["link_click"]);
+    viewContent += getActionValue(actions, [
+      "offsite_conversion.fb_pixel_view_content", "view_content",
+    ]);
+    results += getActionValue(actions, [
+      "offsite_conversion.fb_pixel_lead", "lead",
+      "offsite_conversion.fb_pixel_purchase", "purchase",
+      "leadgen_grouped", "onsite_conversion.leadgen_grouped",
+      "onsite_conversion.messaging_first_reply",
+    ]);
+
+    // Purchase value
+    if (actions) {
+      for (const a of actions) {
+        if (["offsite_conversion.fb_pixel_purchase", "purchase"].includes(a.action_type)) {
+          // value is count, need action_values for monetary
         }
       }
     }
   }
 
+  const leads = pixelLeads + messageLeads;
   const cpc = clicks > 0 ? spend / clicks : 0;
   const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
   const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-  costPerLead = leads > 0 ? spend / leads : 0;
+  const frequency = reach > 0 ? impressions / reach : 0;
 
-  return { spend, impressions, clicks, reach, leads, cpc, cpm, ctr, cost_per_lead: costPerLead };
+  return {
+    spend, impressions, clicks, reach, cpc, cpm, ctr, frequency,
+    leads, pixelLeads, formLeads, messageLeads,
+    purchases, completeRegistration, addToCart, initiateCheckout,
+    linkClicks, viewContent, results,
+    costPerLead: leads > 0 ? spend / leads : 0,
+    costPerPixelLead: pixelLeads > 0 ? spend / pixelLeads : 0,
+    costPerFormLead: formLeads > 0 ? spend / formLeads : 0,
+    costPerMessage: messageLeads > 0 ? spend / messageLeads : 0,
+    costPerPurchase: purchases > 0 ? spend / purchases : 0,
+    costPerRegistration: completeRegistration > 0 ? spend / completeRegistration : 0,
+    costPerAddToCart: addToCart > 0 ? spend / addToCart : 0,
+    costPerCheckout: initiateCheckout > 0 ? spend / initiateCheckout : 0,
+    costPerLinkClick: linkClicks > 0 ? spend / linkClicks : 0,
+    costPerViewContent: viewContent > 0 ? spend / viewContent : 0,
+    costPerResult: results > 0 ? spend / results : 0,
+  };
 }
 
 function replacePlaceholders(template: string, vars: Record<string, string>): string {
@@ -93,6 +152,28 @@ function replacePlaceholders(template: string, vars: Record<string, string>): st
     msg = msg.replaceAll(`{{${key}}}`, value);
   }
   return msg;
+}
+
+/** Get current time in America/Sao_Paulo timezone */
+function getBrazilNow(): Date {
+  const utc = new Date();
+  // Create a formatter to get the Brazil time components
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(utc);
+  const get = (type: string) => parts.find(p => p.type === type)?.value || "0";
+  return new Date(
+    parseInt(get("year")),
+    parseInt(get("month")) - 1,
+    parseInt(get("day")),
+    parseInt(get("hour")),
+    parseInt(get("minute")),
+    parseInt(get("second")),
+  );
 }
 
 Deno.serve(async (req) => {
@@ -111,13 +192,15 @@ Deno.serve(async (req) => {
     let configs: any[] = [];
 
     if (send_all) {
-      // Called by cron — find alerts matching current day/time
-      const now = new Date();
+      // Use Brazil timezone for schedule matching
+      const now = getBrazilNow();
       const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const currentDay = days[now.getUTCDay()];
-      const currentTime = `${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")}`;
+      const currentDay = days[now.getDay()];
+      const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
-      const { data } = await supabase
+      console.log(`[CRON] Brazil time: ${currentDay} ${currentTime}`);
+
+      const { data, error } = await supabase
         .from("alert_configs")
         .select("*, clients(name, meta_ad_account_id)")
         .eq("is_active", true)
@@ -125,7 +208,9 @@ Deno.serve(async (req) => {
         .gte("schedule_time", currentTime + ":00")
         .lte("schedule_time", currentTime + ":59");
 
+      if (error) console.error("[CRON] Query error:", error.message);
       configs = data || [];
+      console.log(`[CRON] Found ${configs.length} alerts to send`);
     } else if (alert_config_id) {
       const { data } = await supabase
         .from("alert_configs")
@@ -152,9 +237,7 @@ Deno.serve(async (req) => {
         }
 
         const { since, until } = getDateRange(config.report_period);
-        const selectedMetrics: string[] = config.selected_metrics || [];
 
-        // Fetch Meta insights
         const fields = "campaign_name,spend,impressions,clicks,cpc,cpm,cpp,ctr,reach,actions,cost_per_action_type";
         const timeRange = JSON.stringify({ since, until });
         const metaUrl = `https://graph.facebook.com/v21.0/act_${adAccountId}/insights?time_increment=1&level=ad&limit=3000&time_range=${encodeURIComponent(timeRange)}&fields=${fields}&access_token=${config.meta_token}`;
@@ -166,7 +249,6 @@ Deno.serve(async (req) => {
           throw new Error(`Meta API error: ${metaJson.error.message}`);
         }
 
-        // Paginate if needed
         let allRows: MetaInsightsRow[] = metaJson.data || [];
         let nextUrl = metaJson.paging?.next;
         while (nextUrl) {
@@ -178,7 +260,7 @@ Deno.serve(async (req) => {
 
         const agg = aggregateMetrics(allRows);
 
-        // Build variables map
+        // Build full variables map
         const vars: Record<string, string> = {
           spend: formatCurrency(agg.spend),
           impressions: formatNumber(agg.impressions),
@@ -187,8 +269,29 @@ Deno.serve(async (req) => {
           cpm: formatCurrency(agg.cpm),
           ctr: `${agg.ctr.toFixed(2)}%`,
           reach: formatNumber(agg.reach),
+          frequency: agg.frequency.toFixed(2),
           leads: formatNumber(agg.leads),
-          cost_per_lead: formatCurrency(agg.cost_per_lead),
+          cost_per_lead: formatCurrency(agg.costPerLead),
+          pixel_leads: formatNumber(agg.pixelLeads),
+          cost_per_pixel_lead: formatCurrency(agg.costPerPixelLead),
+          form_leads: formatNumber(agg.formLeads),
+          cost_per_form_lead: formatCurrency(agg.costPerFormLead),
+          message_leads: formatNumber(agg.messageLeads),
+          cost_per_message: formatCurrency(agg.costPerMessage),
+          purchases: formatNumber(agg.purchases),
+          cost_per_purchase: formatCurrency(agg.costPerPurchase),
+          complete_registration: formatNumber(agg.completeRegistration),
+          cost_per_registration: formatCurrency(agg.costPerRegistration),
+          add_to_cart: formatNumber(agg.addToCart),
+          cost_per_add_to_cart: formatCurrency(agg.costPerAddToCart),
+          initiate_checkout: formatNumber(agg.initiateCheckout),
+          cost_per_checkout: formatCurrency(agg.costPerCheckout),
+          link_clicks: formatNumber(agg.linkClicks),
+          cost_per_link_click: formatCurrency(agg.costPerLinkClick),
+          view_content: formatNumber(agg.viewContent),
+          cost_per_view_content: formatCurrency(agg.costPerViewContent),
+          results: formatNumber(agg.results),
+          cost_per_result: formatCurrency(agg.costPerResult),
           period: `${since} a ${until}`,
           client_name: config.clients?.name || "",
         };
@@ -211,7 +314,6 @@ Deno.serve(async (req) => {
 
         const waJson = await waRes.json().catch(() => ({}));
 
-        // Log success
         await supabase.from("alert_logs").insert({
           alert_config_id: config.id,
           client_id: config.client_id,
@@ -222,7 +324,6 @@ Deno.serve(async (req) => {
 
         results.push({ id: config.id, status: "success" });
       } catch (err: any) {
-        // Log error
         await supabase.from("alert_logs").insert({
           alert_config_id: config.id,
           client_id: config.client_id,
