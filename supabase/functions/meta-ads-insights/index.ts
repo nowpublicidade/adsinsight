@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { extractMetaMetrics, META_INSIGHTS_FIELDS } from "../_shared/metaMetrics.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,108 +54,10 @@ serve(async (req) => {
       dateParams = `&time_range={"since":"${date_range.start}","until":"${date_range.end}"}`;
     }
 
-    const baseFields =
-      "spend,impressions,reach,clicks,cpc,cpm,ctr,frequency,actions,action_values,cost_per_action_type,conversions,conversion_values,cost_per_conversion";
+    const baseFields = META_INSIGHTS_FIELDS;
     const accessToken = client.meta_access_token;
     const rawAdAccountId = client.meta_ad_account_id;
     const adAccountId = rawAdAccountId.startsWith("act_") ? rawAdAccountId : `act_${rawAdAccountId}`;
-
-    const getActionValue = (actions: any[], ...types: string[]) => {
-      if (!actions) return 0;
-      for (const t of types) {
-        const a = actions.find((x: any) => x.action_type === t);
-        if (a) return parseFloat(a.value);
-      }
-      return 0;
-    };
-
-    const processMetrics = (raw: any) => {
-      const pixelLeads = getActionValue(raw.actions, "lead", "offsite_conversion.fb_pixel_lead", "omni_lead");
-      const messageLeads = getActionValue(
-        raw.actions,
-        "onsite_conversion.messaging_conversation_started_7d",
-        "onsite_conversion.lead_grouped",
-        "onsite_web_lead",
-      );
-      const totalLeads = pixelLeads + messageLeads;
-      const spend = parseFloat(raw.spend || 0);
-      const purchases = getActionValue(
-        raw.actions,
-        "purchase",
-        "offsite_conversion.fb_pixel_purchase",
-        "omni_purchase",
-      );
-      const purchaseValue = getActionValue(
-        raw.action_values,
-        "purchase",
-        "offsite_conversion.fb_pixel_purchase",
-        "omni_purchase",
-      );
-      const addToCart = getActionValue(
-        raw.actions,
-        "add_to_cart",
-        "offsite_conversion.fb_pixel_add_to_cart",
-        "omni_add_to_cart",
-      );
-      const initiateCheckout = getActionValue(
-        raw.actions,
-        "initiate_checkout",
-        "offsite_conversion.fb_pixel_initiate_checkout",
-        "omni_initiated_checkout",
-      );
-      const viewContent = getActionValue(
-        raw.actions,
-        "view_content",
-        "offsite_conversion.fb_pixel_view_content",
-        "omni_view_content",
-      );
-      const completeRegistration = getActionValue(
-        raw.actions,
-        "complete_registration",
-        "offsite_conversion.fb_pixel_complete_registration",
-        "omni_complete_registration",
-      );
-      const linkClicks = getActionValue(raw.actions, "link_click");
-      const formLeads = getActionValue(raw.actions, "leadgen_grouped", "onsite_conversion.lead_grouped");
-      let results = 0;
-      if (raw.conversions && Array.isArray(raw.conversions)) {
-        results = raw.conversions.reduce((s: number, c: any) => s + parseFloat(c.value || 0), 0);
-      }
-      return {
-        spend,
-        impressions: parseInt(raw.impressions || 0),
-        reach: parseInt(raw.reach || 0),
-        clicks: parseInt(raw.clicks || 0),
-        cpc: parseFloat(raw.cpc || 0),
-        cpm: parseFloat(raw.cpm || 0),
-        ctr: parseFloat(raw.ctr || 0),
-        frequency: parseFloat(raw.frequency || 0),
-        leads: totalLeads,
-        pixelLeads,
-        messageLeads,
-        costPerLead: totalLeads > 0 ? spend / totalLeads : 0,
-        costPerPixelLead: pixelLeads > 0 ? spend / pixelLeads : 0,
-        purchases,
-        purchaseValue,
-        roas: spend > 0 ? purchaseValue / spend : 0,
-        costPerPurchase: purchases > 0 ? spend / purchases : 0,
-        addToCart,
-        costPerAddToCart: addToCart > 0 ? spend / addToCart : 0,
-        initiateCheckout,
-        costPerCheckout: initiateCheckout > 0 ? spend / initiateCheckout : 0,
-        viewContent,
-        completeRegistration,
-        costPerRegistration: completeRegistration > 0 ? spend / completeRegistration : 0,
-        linkClicks,
-        costPerLinkClick: linkClicks > 0 ? spend / linkClicks : 0,
-        costPerViewContent: viewContent > 0 ? spend / viewContent : 0,
-        costPerMessage: messageLeads > 0 ? spend / messageLeads : 0,
-        formLeads,
-        costPerFormLead: formLeads > 0 ? spend / formLeads : 0,
-        results,
-        costPerResult: results > 0 ? spend / results : 0,
-      };
-    };
 
     // ── BREAKDOWN: campaign ───────────────────────────────────────────────────
     if (breakdown === "campaign") {
@@ -184,7 +87,7 @@ serve(async (req) => {
             campaign_name: row.campaign_name,
             campaign_id: row.campaign_id,
             effective_status,
-            ...processMetrics(row),
+            ...extractMetaMetrics(row),
           };
         }),
       );
@@ -225,7 +128,7 @@ serve(async (req) => {
             campaign_name: row.campaign_name,
             effective_status,
             thumbnail_url,
-            ...processMetrics(row),
+            ...extractMetaMetrics(row),
           };
         }),
       );
@@ -242,7 +145,7 @@ serve(async (req) => {
       const daily = (data.data || []).map((row: any) => ({
         date_start: row.date_start,
         date_stop: row.date_stop,
-        ...processMetrics(row),
+        ...extractMetaMetrics(row),
       }));
       return new Response(JSON.stringify({ daily }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -258,7 +161,7 @@ serve(async (req) => {
       const demographics = (data.data || []).map((row: any) => ({
         age: row.age,
         gender: row.gender,
-        ...processMetrics(row),
+        ...extractMetaMetrics(row),
       }));
       return new Response(JSON.stringify({ demographics }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -273,7 +176,7 @@ serve(async (req) => {
       if (data.error) throw new Error(data.error.message);
       const platforms = (data.data || []).map((row: any) => ({
         publisher_platform: row.publisher_platform,
-        ...processMetrics(row),
+        ...extractMetaMetrics(row),
       }));
       return new Response(JSON.stringify({ platforms }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -289,7 +192,7 @@ serve(async (req) => {
       const positions = (data.data || []).map((row: any) => ({
         publisher_platform: row.publisher_platform,
         platform_position: row.platform_position,
-        ...processMetrics(row),
+        ...extractMetaMetrics(row),
       }));
       return new Response(JSON.stringify({ positions }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -301,7 +204,7 @@ serve(async (req) => {
     const insightsResponse = await fetch(insightsUrl);
     const insightsData = await insightsResponse.json();
     if (insightsData.error) throw new Error(insightsData.error.message || "Failed to fetch insights");
-    const metrics = processMetrics(insightsData.data?.[0] || {});
+    const metrics = extractMetaMetrics(insightsData.data?.[0] || {});
     return new Response(JSON.stringify({ metrics, raw: insightsData.data?.[0] || {} }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
