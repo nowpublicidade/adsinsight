@@ -511,17 +511,22 @@ export default function Alerts() {
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Métricas
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {AVAILABLE_METRICS.map((m) => (
-                  <label key={m.key} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <Checkbox
-                      checked={form.selected_metrics.includes(m.key)}
-                      onCheckedChange={() => toggleMetric(m.key)}
-                    />
-                    {m.label}
-                  </label>
-                ))}
-              </div>
+              {["Tráfego", "Conversões", "E-commerce", "Engajamento"].map((group) => (
+                <div key={group} className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">{group}</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {AVAILABLE_METRICS.filter(m => m.group === group).map((m) => (
+                      <label key={m.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={form.selected_metrics.includes(m.key)}
+                          onCheckedChange={() => toggleMetric(m.key)}
+                        />
+                        {m.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Message template */}
