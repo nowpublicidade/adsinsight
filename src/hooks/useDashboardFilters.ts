@@ -41,7 +41,7 @@ export function useDashboardFilters(queryKeyPrefixes: string[]) {
             end: format(customDateRange.to, "yyyy-MM-dd"),
           },
         }
-      : { date_preset: datePreset };
+      : { date_preset: datePreset === "custom" ? "last_7d" : datePreset };
 
   /** Query key segment — include custom dates so React Query refetches on range change */
   const dateKey =
