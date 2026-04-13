@@ -142,6 +142,8 @@ async function fetchMetaData(config: any): Promise<Record<string, string>> {
     cost_per_message: formatCurrency(agg.costPerMessage),
     purchases: formatNumber(agg.purchases),
     cost_per_purchase: formatCurrency(agg.costPerPurchase),
+    purchase_value: formatCurrency(agg.purchaseValue),
+    roas: `${agg.roas.toFixed(2)}x`,
     complete_registration: formatNumber(agg.completeRegistration),
     cost_per_registration: formatCurrency(agg.costPerRegistration),
     add_to_cart: formatNumber(agg.addToCart),

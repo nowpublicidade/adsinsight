@@ -82,6 +82,8 @@ const META_METRICS = [
   { key: "cost_per_result", label: "Custo por Resultado", group: "Conversões" },
   { key: "purchases", label: "Compras", group: "E-commerce" },
   { key: "cost_per_purchase", label: "Custo por Compra", group: "E-commerce" },
+  { key: "purchase_value", label: "Valor de Conversão", group: "E-commerce" },
+  { key: "roas", label: "ROAS", group: "E-commerce" },
   { key: "complete_registration", label: "Registros Completos", group: "E-commerce" },
   { key: "cost_per_registration", label: "Custo por Registro", group: "E-commerce" },
   { key: "add_to_cart", label: "Adicionar ao Carrinho", group: "E-commerce" },
